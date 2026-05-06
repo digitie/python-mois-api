@@ -19,6 +19,7 @@ python -m mypy pymois
 - 증분/이력 편의 메서드: `DAT_UPDT_PNT`, `LAST_MDFCN_PNT`, `BASE_DATE`, `OPN_ATMY_GRP_CD`
 - JSON/XML 응답 파싱과 resultCode 예외 매핑
 - localdata CSV 로드: CP949, 날짜, KST 시각, 숫자, 좌표 변환
+- 좌표 값 객체: `KatecPoint(x, y)`, `Wgs84Point(lon, lat)`, `StationCoordinates` 호환 별칭
 - 동적 편의 함수: `get_hospitals()`, `get_updated_hospitals()`, `load_hospitals()` 계열
 - DB 적재 모델: Pydantic 변환, SQLAlchemy 2 메타데이터, PostGIS geometry 컬럼, JSONB 상세 데이터
 

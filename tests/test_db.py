@@ -42,6 +42,10 @@ def test_place_record_extracts_db_and_linkage_fields() -> None:
     assert place.road_zip == "03171"
     assert place.point_wkt is not None
     assert place.point_wkt.startswith("POINT(126.")
+    assert place.katec_point is not None
+    assert place.wgs84_point is not None
+    assert place.station_coordinates is not None
+    assert place.wgs84_point.as_tuple() == (place.lon, place.lat)
     assert isinstance(place.data_updated_at, datetime)
 
     specific_data = place.specific_data()

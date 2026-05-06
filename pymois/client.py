@@ -13,7 +13,7 @@ from requests import RequestException
 from ._http import build_session, raise_for_http_error
 from .catalogs import get_openapi_service
 from .exceptions import MoisAuthError, MoisParseError, MoisRequestError, MoisServerError
-from .models import Condition, MoisResponse
+from .models import Condition, ConditionOperator, MoisResponse, OpenApiKind
 
 
 class MoisClient:
@@ -49,7 +49,7 @@ class MoisClient:
         self,
         slug: str,
         *,
-        kind: str = "info",
+        kind: str | OpenApiKind = OpenApiKind.INFO,
         page_no: int = 1,
         num_of_rows: int = 100,
         conditions: Mapping[str, Any] | Iterable[Condition] | None = None,
@@ -57,14 +57,15 @@ class MoisClient:
     ) -> MoisResponse:
         """업종 slug와 구분(info/history)으로 한 페이지를 호출합니다."""
 
-        if kind not in {"info", "history"}:
+        kind_value = str(kind)
+        if kind_value not in {OpenApiKind.INFO.value, OpenApiKind.HISTORY.value}:
             raise ValueError('kind must be "info" or "history"')
         if page_no < 1:
             raise ValueError("page_no must be >= 1")
         if not 1 <= num_of_rows <= 100:
             raise ValueError("num_of_rows must be between 1 and 100")
 
-        url = self._endpoint_url(slug, kind)
+        url = self._endpoint_url(slug, kind_value)
         request_params: dict[str, Any] = {
             "serviceKey": self.service_key,
             "pageNo": page_no,
@@ -78,7 +79,7 @@ class MoisClient:
             response = self.session.get(url, params=request_params, timeout=self.timeout)
             raise_for_http_error(response, f"{slug}/{kind}")
         except RequestException as exc:
-            raise MoisRequestError(f"{slug}/{kind}: request failed") from exc
+            raise MoisRequestError(f"{slug}/{kind_value}: request failed") from exc
 
         return _parse_openapi_response(response, page_no=page_no, num_of_rows=num_of_rows)
 
@@ -86,7 +87,7 @@ class MoisClient:
         self,
         slug: str,
         *,
-        kind: str = "info",
+        kind: str | OpenApiKind = OpenApiKind.INFO,
         page_no: int = 1,
         num_of_rows: int = 100,
         conditions: Mapping[str, Any] | Iterable[Condition] | None = None,
@@ -109,7 +110,7 @@ class MoisClient:
         self,
         slug: str,
         *,
-        kind: str = "info",
+        kind: str | OpenApiKind = OpenApiKind.INFO,
         num_of_rows: int = 100,
         conditions: Mapping[str, Any] | Iterable[Condition] | None = None,
         params: Mapping[str, Any] | None = None,
@@ -159,7 +160,7 @@ class MoisClient:
         return self.iter_records(
             slug,
             num_of_rows=num_of_rows,
-            conditions=[Condition(field, "GTE", _timestamp_param(since))],
+            conditions=[Condition(field, ConditionOperator.GTE, _timestamp_param(since))],
             params=params,
             max_pages=max_pages,
         )
@@ -199,9 +200,11 @@ class MoisClient:
     ) -> Iterator[Mapping[str, Any]]:
         """특정 기준일자의 이력 데이터를 순회합니다."""
 
-        conditions: list[Condition] = [Condition("BASE_DATE", "EQ", _date_param(base_date))]
+        conditions: list[Condition] = [
+            Condition("BASE_DATE", ConditionOperator.EQ, _date_param(base_date))
+        ]
         if org_code:
-            conditions.append(Condition("OPN_ATMY_GRP_CD", "EQ", org_code))
+            conditions.append(Condition("OPN_ATMY_GRP_CD", ConditionOperator.EQ, org_code))
         return self.iter_records(
             slug,
             kind="history",
@@ -296,8 +299,8 @@ def _condition_params(conditions: Mapping[str, Any] | Iterable[Condition] | None
             if isinstance(value, tuple) and len(value) == 2:
                 operator, actual_value = value
             else:
-                operator, actual_value = "EQ", value
-            params[f"cond[{field}::{operator}]"] = actual_value
+                operator, actual_value = ConditionOperator.EQ, value
+            params[f"cond[{field}::{str(operator)}]"] = actual_value
         return params
     return {condition.param_name(): condition.value for condition in conditions}
 

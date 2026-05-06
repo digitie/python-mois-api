@@ -1,6 +1,6 @@
 # PostgreSQL/PostGIS DB 적재
 
-`pymois`는 localdata CSV 또는 OpenAPI 응답을 공통 검색용 마스터 테이블과 업종별 JSONB 상세 테이블로 저장할 수 있는 SQLAlchemy 2 모델을 제공합니다. 좌표는 로더에서 EPSG:5174 원본 좌표를 WGS84로 변환한 뒤 PostGIS `geometry(Point, 4326)`으로 저장합니다.
+`pymois`는 localdata CSV 또는 OpenAPI 응답을 공통 검색용 마스터 테이블과 업종별 JSONB 상세 테이블로 저장할 수 있는 SQLAlchemy 2 모델을 제공합니다. 좌표는 로더에서 EPSG:5174 원본 `(x, y)` 좌표를 WGS84 `(lon, lat)`로 변환한 뒤 PostGIS `geometry(Point, 4326)`으로 저장합니다.
 
 ## 의존성
 
@@ -97,6 +97,7 @@ place = record_to_place_record(records[0])
 master, detail = build_place_models(place)
 
 print(place.point_wkt)
+print(place.wgs84_point.as_tuple())  # (lon, lat)
 print(master.service_slug, master.mng_no)
 print(detail.specific_data)
 ```

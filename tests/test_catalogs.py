@@ -3,6 +3,8 @@ from __future__ import annotations
 import pytest
 
 from pymois import (
+    FileDownloadKind,
+    OpenApiKind,
     get_file_download,
     get_incremental_openapi_endpoint,
     get_openapi_service,
@@ -30,6 +32,7 @@ def test_openapi_endpoint_catalog_has_info_and_history_for_every_service() -> No
     endpoints = list_openapi_endpoints()
     assert len(endpoints) == 390
     assert len(list_openapi_endpoints(kind="info")) == 195
+    assert len(list_openapi_endpoints(kind=OpenApiKind.INFO)) == 195
     assert len(list_openapi_endpoints(kind="history")) == 195
     health = list_openapi_endpoints(category="건강")
     assert {endpoint.service_slug for endpoint in health} >= {"hospitals", "pharmacies"}
@@ -65,6 +68,7 @@ def test_incremental_openapi_catalog_filter_and_lookup() -> None:
 def test_file_download_catalog_defaults_to_license_downloads() -> None:
     downloads = list_file_downloads()
     assert len(downloads) == 195
+    assert len(list_file_downloads(kind=FileDownloadKind.LICENSE)) == 195
     assert get_file_download("hospitals").download_url.endswith("/file/download/hospitals/info")
     assert len(list_file_downloads(kind=None)) == 208
 

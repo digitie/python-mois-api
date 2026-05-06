@@ -5,6 +5,7 @@ from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from pymois import BusinessStatusCategory
 from pymois.files import LocalDataFileClient, load_records_from_bytes, load_records_from_text
 
 CSV_TEXT = (
@@ -23,12 +24,18 @@ def test_load_records_from_text_converts_common_python_types() -> None:
     assert record.category == "건강"
     assert record.business_name == "포레스트병원"
     assert record.is_open is True
+    assert record.status_category == BusinessStatusCategory.OPEN
     assert record.license_date == date(2025, 2, 28)
     assert record.updated_at == datetime(2026, 4, 30, 22, 30, 12, tzinfo=ZoneInfo("Asia/Seoul"))
     assert record.data["SCKBD_CNT"] == 92
     assert record.coordinates is not None
     assert 126.99 < record.coordinates.lon < 127.01
     assert 37.57 < record.coordinates.lat < 37.58
+    assert record.coordinates.katec_point.x == record.coordinates.katec_x
+    assert record.coordinates.wgs84_point.as_tuple() == (
+        record.coordinates.lon,
+        record.coordinates.lat,
+    )
     assert record.data["WGS84_LON"] == record.coordinates.lon
 
 

@@ -6,6 +6,8 @@ from functools import lru_cache
 
 from pyproj import Transformer
 
+from .models import KatecPoint, StationCoordinates, Wgs84Point
+
 
 @lru_cache(maxsize=1)
 def _epsg5174_to_wgs84_transformer() -> Transformer:
@@ -13,7 +15,26 @@ def _epsg5174_to_wgs84_transformer() -> Transformer:
 
 
 def epsg5174_to_wgs84(x: float, y: float) -> tuple[float, float]:
-    """Bessel 중부원점TM(EPSG:5174) 좌표를 WGS84 경도/위도로 변환합니다."""
+    """Bessel 중부원점TM(EPSG:5174) `(x, y)`를 WGS84 `(lon, lat)`로 변환합니다."""
 
     lon, lat = _epsg5174_to_wgs84_transformer().transform(float(x), float(y))
     return float(lon), float(lat)
+
+
+def katec_to_wgs84_point(point: KatecPoint) -> Wgs84Point:
+    """KATEC `KatecPoint(x, y)`를 WGS84 `Wgs84Point(lon, lat)`로 변환합니다."""
+
+    lon, lat = epsg5174_to_wgs84(point.x, point.y)
+    return Wgs84Point(lon=lon, lat=lat)
+
+
+def epsg5174_to_wgs84_point(x: float, y: float) -> Wgs84Point:
+    """EPSG:5174 `(x, y)`를 WGS84 값 객체로 변환합니다."""
+
+    return katec_to_wgs84_point(KatecPoint(x, y))
+
+
+def station_coordinates_from_katec(x: float, y: float) -> StationCoordinates:
+    """EPSG:5174 `(x, y)`에서 KATEC/WGS84 복합 좌표 객체를 생성합니다."""
+
+    return StationCoordinates.from_katec(x, y)

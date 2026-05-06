@@ -36,6 +36,8 @@
 - localdata 파일은 UTF-8이 아니라 CP949인 경우가 기본입니다.
 - 빈 문자열을 숫자 0으로 바꾸지 않습니다. 의미 없는 빈 값은 `None`입니다.
 - 좌표는 원본 EPSG:5174 값을 보존하면서 WGS84를 추가합니다. 원본 좌표를 덮어쓰지 않습니다.
+- 좌표 순서는 KATEC/EPSG:5174가 `(x, y)`, WGS84/EPSG:4326이 `(lon, lat)`입니다. helper 이름과 문서에서 순서를 항상 명시합니다.
+- 좌표를 새로 노출할 때 float 네 개만 추가하지 말고 `KatecPoint`, `Wgs84Point`, `StationCoordinates` 값 객체를 함께 제공합니다.
 - 날짜와 시각은 문자열로 방치하지 않습니다. `date`와 KST `datetime`으로 변환합니다.
 
 ## 여행 플래너 설계

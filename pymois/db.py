@@ -27,7 +27,7 @@ from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
-from .models import LocalDataRecord
+from .models import KatecPoint, LocalDataRecord, StationCoordinates, Wgs84Point
 
 COMMON_DATA_FIELDS = frozenset(
     {
@@ -177,9 +177,9 @@ class PlaceRecord(BaseModel):
     def point_wkt(self) -> str | None:
         """WGS84 좌표가 있으면 PostGIS WKT 문자열을 반환합니다."""
 
-        if self.lon is None or self.lat is None:
+        if self.wgs84_point is None:
             return None
-        return f"POINT({self.lon} {self.lat})"
+        return self.wgs84_point.to_wkt()
 
     def point_element(self) -> Any | None:
         """SQLAlchemy/GeoAlchemy2에 전달할 WKTElement를 반환합니다."""
@@ -187,6 +187,42 @@ class PlaceRecord(BaseModel):
         if self.point_wkt is None:
             return None
         return WKTElement(self.point_wkt, srid=4326)
+
+    @property
+    def katec_x(self) -> float | None:
+        """호환성을 위한 원본 KATEC X 좌표 별칭."""
+
+        return self.source_x
+
+    @property
+    def katec_y(self) -> float | None:
+        """호환성을 위한 원본 KATEC Y 좌표 별칭."""
+
+        return self.source_y
+
+    @property
+    def katec_point(self) -> KatecPoint | None:
+        """원본 EPSG:5174 `(x, y)` 좌표 값 객체."""
+
+        if self.source_x is None or self.source_y is None:
+            return None
+        return KatecPoint(self.source_x, self.source_y)
+
+    @property
+    def wgs84_point(self) -> Wgs84Point | None:
+        """WGS84 `(lon, lat)` 좌표 값 객체."""
+
+        if self.lon is None or self.lat is None:
+            return None
+        return Wgs84Point(self.lon, self.lat)
+
+    @property
+    def station_coordinates(self) -> StationCoordinates | None:
+        """KATEC와 WGS84를 함께 담은 좌표 값 객체."""
+
+        if self.katec_point is None or self.wgs84_point is None:
+            return None
+        return StationCoordinates.from_points(self.katec_point, self.wgs84_point)
 
     def json_data(self) -> dict[str, Any]:
         """JSONB 저장에 사용할 `data`를 JSON 호환 타입으로 변환합니다."""

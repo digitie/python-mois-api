@@ -12,7 +12,8 @@
 - API, 파일 다운로드, 응답변수 목록을 코드에서 조회
 - localdata CSV 다운로드와 Python 객체 리스트 로드
 - CP949 CSV, 날짜/시각, 숫자, EPSG:5174 좌표를 자동 변환
-- EPSG:5174 좌표를 WGS84 경도/위도로 추가 제공
+- EPSG:5174 좌표를 WGS84 `(lon, lat)`로 변환하고 좌표 값 객체 제공
+- OpenAPI/파일/조건/좌표계 enum과 타입 별칭 제공
 - Pydantic, SQLAlchemy 2, GeoAlchemy2 기반 PostgreSQL/PostGIS 적재 모델 제공
 - 네트워크 없는 단위 테스트와 실제 호출용 live 테스트 분리 가능
 
@@ -115,9 +116,17 @@ print(first.business_name)
 print(first.license_date)
 print(first.updated_at)
 print(first.coordinates.lon, first.coordinates.lat)
+print(first.coordinates.wgs84_point.as_tuple())  # (lon, lat)
 ```
 
-CSV 원본의 `좌표정보(X)`, `좌표정보(Y)`는 EPSG:5174로 보존하고, `WGS84_LON`, `WGS84_LAT`와 `Coordinate` 객체를 추가합니다.
+CSV 원본의 `좌표정보(X)`, `좌표정보(Y)`는 EPSG:5174로 보존하고, `WGS84_LON`, `WGS84_LAT`와 `Coordinate` 객체를 추가합니다. 좌표 순서는 KATEC가 `(x, y)`, WGS84가 `(lon, lat)`입니다.
+
+```python
+from pymois import KatecPoint, Wgs84Point
+
+katec = KatecPoint(first.coordinates.katec_x, first.coordinates.katec_y)
+wgs84 = Wgs84Point(first.coordinates.lon, first.coordinates.lat)
+```
 
 지역별 파일은 localdata의 `orgCode`를 그대로 전달합니다.
 
@@ -167,6 +176,7 @@ downloads = list_file_downloads()
 - [API 및 파일 다운로드 목록](docs/api-list.md)
 - [증분 OpenAPI 목록과 신청 링크](docs/incremental-openapi.md)
 - [파일 다운로드와 로드 API](docs/file-downloads.md)
+- [타입과 좌표 값 객체](docs/types-and-coordinates.md)
 - [PostgreSQL/PostGIS DB 적재](docs/database.md)
 - [응답변수 매핑표](docs/response-fields.md)
 - [여행 플래너 활용 아키텍처](docs/travel-planner-architecture.md)

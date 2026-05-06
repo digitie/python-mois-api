@@ -9,7 +9,7 @@ import pytest
 from pymois import list_incremental_openapi_endpoints
 from pymois.client import MoisClient
 from pymois.exceptions import MoisAuthError, MoisRequestError
-from pymois.models import Condition
+from pymois.models import Condition, ConditionOperator, OpenApiKind
 
 
 @dataclass
@@ -74,8 +74,8 @@ def test_request_accepts_condition_objects_and_history_kind() -> None:
     client = MoisClient("KEY", session=session)
     client.request(
         "hospitals",
-        kind="history",
-        conditions=[Condition("BASE_DATE", "EQ", "20260101")],
+        kind=OpenApiKind.HISTORY,
+        conditions=[Condition("BASE_DATE", ConditionOperator.EQ, "20260101")],
     )
     url, kwargs = session.calls[0]
     assert url.endswith("/hospitals/history")

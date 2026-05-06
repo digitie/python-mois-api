@@ -16,6 +16,7 @@ first = records[0]
 print(first.business_name)
 print(first.license_date)
 print(first.coordinates.lon, first.coordinates.lat)
+print(first.coordinates.wgs84_point.as_tuple())  # (lon, lat)
 ```
 
 ## 지역별 다운로드
@@ -33,8 +34,10 @@ records = files.load("hospitals", org_code="3000000")
 | `인허가일자`, `폐업일자` 등 일자 | `datetime.date` |
 | `데이터갱신시점`, `최종수정시점` | KST timezone-aware `datetime.datetime` |
 | `NUMBER` 필드와 면적/수량 계열 | `int` 또는 `float` |
-| `좌표정보(X/Y)` | 원본 `CRD_INFO_X/Y` float + `WGS84_LON/LAT` + `Coordinate` 객체 |
+| `좌표정보(X/Y)` | 원본 `CRD_INFO_X/Y` float + `WGS84_LON/LAT` + `Coordinate`, `KatecPoint`, `Wgs84Point` 값 객체 |
 | 빈 문자열/공백 | `None` |
+
+좌표 순서는 KATEC/EPSG:5174가 `(x, y)`, WGS84/EPSG:4326이 `(lon, lat)`입니다. 자세한 타입은 [타입과 좌표 값 객체](types-and-coordinates.md)를 봅니다.
 
 ## 전체 다운로드 함수 목록
 

@@ -15,8 +15,10 @@ from .catalog import (
 from .exceptions import MoisCatalogError
 from .models import (
     FileDownload,
+    FileDownloadKind,
     IncrementalOpenApiEndpoint,
     OpenApiEndpoint,
+    OpenApiKind,
     OpenApiService,
     ResponseField,
 )
@@ -31,7 +33,7 @@ def list_openapi_services(category: str | None = None) -> list[OpenApiService]:
 
 def list_openapi_endpoints(
     *,
-    kind: str | None = None,
+    kind: str | OpenApiKind | None = None,
     category: str | None = None,
 ) -> list[OpenApiEndpoint]:
     """OpenAPI 호출 URL 목록을 반환합니다.
@@ -42,7 +44,8 @@ def list_openapi_endpoints(
     service_category = {row["slug"]: row["category"] for row in OPENAPI_SERVICES}
     rows: Iterable[dict[str, Any]] = OPENAPI_ENDPOINTS
     if kind is not None:
-        rows = [row for row in rows if row["kind"] == kind]
+        kind_value = str(kind)
+        rows = [row for row in rows if row["kind"] == kind_value]
     if category is not None:
         rows = [row for row in rows if service_category.get(row["service_slug"]) == category]
     return [_openapi_endpoint(row) for row in rows]
@@ -77,7 +80,7 @@ def get_incremental_openapi_endpoint(slug: str) -> IncrementalOpenApiEndpoint:
 
 def list_file_downloads(
     *,
-    kind: str | None = "license",
+    kind: str | FileDownloadKind | None = FileDownloadKind.LICENSE,
     category: str | None = None,
 ) -> list[FileDownload]:
     """localdata 파일 다운로드 목록을 반환합니다.
@@ -88,7 +91,8 @@ def list_file_downloads(
 
     rows: Iterable[dict[str, Any]] = FILE_DOWNLOADS
     if kind is not None:
-        rows = [row for row in rows if row["kind"] == kind]
+        kind_value = str(kind)
+        rows = [row for row in rows if row["kind"] == kind_value]
     if category is not None:
         rows = [row for row in rows if row["category"] == category]
     return [_file_download(row) for row in rows]

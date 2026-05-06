@@ -16,7 +16,6 @@ from requests import RequestException
 from ._http import build_session, raise_for_http_error
 from .catalogs import get_file_download
 from .convert import convert_value, field_for_header
-from .coords import epsg5174_to_wgs84
 from .exceptions import MoisParseError, MoisRequestError
 from .models import Coordinate, LocalDataRecord
 
@@ -186,8 +185,7 @@ def _coordinates_from_data(data: dict[str, Any]) -> Coordinate | None:
     y = data.get("CRD_INFO_Y")
     if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
         return None
-    lon, lat = epsg5174_to_wgs84(float(x), float(y))
-    return Coordinate(x=float(x), y=float(y), lon=lon, lat=lat)
+    return Coordinate.from_katec(float(x), float(y))
 
 
 def _first_csv_bytes(content: bytes) -> bytes:

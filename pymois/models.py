@@ -19,6 +19,7 @@ class OpenApiService:
     name: str
     title: str
     service_name: str
+    application_url: str
     info_url: str
     history_url: str
     info_operation: str
@@ -33,6 +34,23 @@ class OpenApiEndpoint:
     kind: str
     operation_name: str
     url: str
+
+
+@dataclass(frozen=True, slots=True)
+class IncrementalOpenApiEndpoint:
+    """OpenAPI 증분조회 편의 함수와 신청 링크 명세."""
+
+    service_slug: str
+    category: str
+    name: str
+    title: str
+    application_url: str
+    info_url: str
+    condition_field: str
+    source_modified_field: str
+    condition_operator: str
+    get_method: str
+    iter_method: str
 
 
 @dataclass(frozen=True, slots=True)

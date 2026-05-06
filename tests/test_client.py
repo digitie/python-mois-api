@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+from pymois import list_incremental_openapi_endpoints
 from pymois.client import MoisClient
 from pymois.exceptions import MoisAuthError, MoisRequestError
 from pymois.models import Condition
@@ -125,6 +126,69 @@ def test_incremental_update_helper_can_use_source_modified_timestamp() -> None:
     list(client.iter_updated("hospitals", "2026-03-01", source_modified=True))
     _, kwargs = session.calls[0]
     assert kwargs["params"]["cond[LAST_MDFCN_PNT::GTE]"] == "20260301000000"
+
+
+def test_dynamic_incremental_getter_uses_slug_name() -> None:
+    payload = {
+        "response": {
+            "header": {"resultCode": "00"},
+            "body": {"items": {"item": []}},
+        }
+    }
+    session = FakeSession(
+        FakeResponse(payload=payload, headers={"Content-Type": "application/json"})
+    )
+    client = MoisClient("KEY", session=session)
+
+    assert client.get_updated_hospitals("20260505") == []
+
+    url, kwargs = session.calls[0]
+    assert url.endswith("/hospitals/info")
+    assert kwargs["params"]["cond[DAT_UPDT_PNT::GTE]"] == "20260505000000"
+
+
+def test_dynamic_incremental_iterator_can_use_source_modified_timestamp() -> None:
+    payload = {
+        "response": {
+            "header": {"resultCode": "00"},
+            "body": {"items": {"item": []}},
+        }
+    }
+    session = FakeSession(
+        FakeResponse(payload=payload, headers={"Content-Type": "application/json"})
+    )
+    client = MoisClient("KEY", session=session)
+
+    assert list(client.iter_updated_hospitals("20260505010203", source_modified=True)) == []
+
+    url, kwargs = session.calls[0]
+    assert url.endswith("/hospitals/info")
+    assert kwargs["params"]["cond[LAST_MDFCN_PNT::GTE]"] == "20260505010203"
+
+
+def test_dynamic_incremental_helpers_exist_for_every_incremental_endpoint() -> None:
+    payload = {
+        "response": {
+            "header": {"resultCode": "00"},
+            "body": {"items": {"item": []}},
+        }
+    }
+    session = FakeSession(
+        FakeResponse(payload=payload, headers={"Content-Type": "application/json"})
+    )
+    client = MoisClient("KEY", session=session, base_url="http://example.test")
+    endpoints = list_incremental_openapi_endpoints()
+
+    for endpoint in endpoints:
+        method = getattr(client, endpoint.get_method)
+        assert method("2026-05-05", max_pages=1) == []
+
+        url, kwargs = session.calls[-1]
+        assert url == f"http://example.test/{endpoint.service_slug}/info"
+        assert kwargs["params"]["numOfRows"] == 100
+        assert kwargs["params"]["cond[DAT_UPDT_PNT::GTE]"] == "20260505000000"
+
+    assert len(session.calls) == len(endpoints)
 
 
 def test_history_at_helper_builds_base_date_and_org_code_conditions() -> None:

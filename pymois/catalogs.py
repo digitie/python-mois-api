@@ -5,9 +5,21 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from .catalog import FILE_DOWNLOADS, OPENAPI_ENDPOINTS, OPENAPI_SERVICES, RESPONSE_FIELDS
+from .catalog import (
+    FILE_DOWNLOADS,
+    INCREMENTAL_OPENAPI_ENDPOINTS,
+    OPENAPI_ENDPOINTS,
+    OPENAPI_SERVICES,
+    RESPONSE_FIELDS,
+)
 from .exceptions import MoisCatalogError
-from .models import FileDownload, OpenApiEndpoint, OpenApiService, ResponseField
+from .models import (
+    FileDownload,
+    IncrementalOpenApiEndpoint,
+    OpenApiEndpoint,
+    OpenApiService,
+    ResponseField,
+)
 
 
 def list_openapi_services(category: str | None = None) -> list[OpenApiService]:
@@ -43,6 +55,24 @@ def get_openapi_service(slug: str) -> OpenApiService:
         if row["slug"] == slug:
             return _openapi_service(row)
     raise MoisCatalogError(f"알 수 없는 OpenAPI slug입니다: {slug}")
+
+
+def list_incremental_openapi_endpoints(
+    category: str | None = None,
+) -> list[IncrementalOpenApiEndpoint]:
+    """증분조회 가능한 OpenAPI 195개 목록을 반환합니다."""
+
+    rows = _filter_by_category(INCREMENTAL_OPENAPI_ENDPOINTS, category)
+    return [_incremental_openapi_endpoint(row) for row in rows]
+
+
+def get_incremental_openapi_endpoint(slug: str) -> IncrementalOpenApiEndpoint:
+    """slug로 증분조회 OpenAPI 명세를 찾습니다."""
+
+    for row in INCREMENTAL_OPENAPI_ENDPOINTS:
+        if row["service_slug"] == slug:
+            return _incremental_openapi_endpoint(row)
+    raise MoisCatalogError(f"알 수 없는 증분 OpenAPI slug입니다: {slug}")
 
 
 def list_file_downloads(
@@ -123,6 +153,7 @@ def _openapi_service(row: Mapping[str, Any]) -> OpenApiService:
         name=_text(row, "name"),
         title=_text(row, "title"),
         service_name=_text(row, "service_name"),
+        application_url=_text(row, "application_url"),
         info_url=_text(row, "info_url"),
         history_url=_text(row, "history_url"),
         info_operation=_text(row, "info_operation"),
@@ -136,6 +167,22 @@ def _openapi_endpoint(row: Mapping[str, Any]) -> OpenApiEndpoint:
         kind=_text(row, "kind"),
         operation_name=_text(row, "operation_name"),
         url=_text(row, "url"),
+    )
+
+
+def _incremental_openapi_endpoint(row: Mapping[str, Any]) -> IncrementalOpenApiEndpoint:
+    return IncrementalOpenApiEndpoint(
+        service_slug=_text(row, "service_slug"),
+        category=_text(row, "category"),
+        name=_text(row, "name"),
+        title=_text(row, "title"),
+        application_url=_text(row, "application_url"),
+        info_url=_text(row, "info_url"),
+        condition_field=_text(row, "condition_field"),
+        source_modified_field=_text(row, "source_modified_field"),
+        condition_operator=_text(row, "condition_operator"),
+        get_method=_text(row, "get_method"),
+        iter_method=_text(row, "iter_method"),
     )
 
 

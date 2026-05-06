@@ -235,7 +235,28 @@ class MoisClient:
         )
 
     def __getattr__(self, name: str) -> Any:
-        """`get_hospitals()`처럼 slug 기반 편의 메서드를 동적으로 제공합니다."""
+        """`get_hospitals()`나 `get_updated_hospitals()` 같은 편의 메서드를 제공합니다."""
+
+        if name.startswith("get_updated_"):
+            slug = name[len("get_updated_") :]
+
+            def updated_getter(
+                since: date | datetime | str,
+                **kwargs: Any,
+            ) -> list[Mapping[str, Any]]:
+                return self.get_updated(slug, since, **kwargs)
+
+            return updated_getter
+        if name.startswith("iter_updated_"):
+            slug = name[len("iter_updated_") :]
+
+            def updated_iterator(
+                since: date | datetime | str,
+                **kwargs: Any,
+            ) -> Iterator[Mapping[str, Any]]:
+                return self.iter_updated(slug, since, **kwargs)
+
+            return updated_iterator
 
         if name.startswith("get_"):
             slug, kind = _dynamic_name_to_slug(name[4:])

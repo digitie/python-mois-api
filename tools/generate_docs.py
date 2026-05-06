@@ -8,7 +8,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from pymois.catalog import FILE_DOWNLOADS, OPENAPI_SERVICES, RESPONSE_FIELDS  # noqa: E402
+from pymois.catalog import (  # noqa: E402
+    FILE_DOWNLOADS,
+    INCREMENTAL_OPENAPI_ENDPOINTS,
+    OPENAPI_SERVICES,
+    RESPONSE_FIELDS,
+)
 
 
 def esc(value: object) -> str:
@@ -23,7 +28,7 @@ def write_api_list(root: Path) -> None:
     lines.append("")
     lines.append(
         "이 문서는 data.go.kr 공지 `NOTICE_0000000004566`의 붙임2와 "
-        "file.localdata.go.kr 카탈로그에서 생성했습니다."
+        "OpenAPI 활용신청 링크, file.localdata.go.kr 카탈로그에서 생성했습니다."
     )
     lines.append("")
     lines.append("## OpenAPI 목록")
@@ -31,12 +36,13 @@ def write_api_list(root: Path) -> None:
     lines.append(f"- OpenAPI 업종: {len(OPENAPI_SERVICES)}개")
     lines.append(f"- 호출 URL: 조회 {len(OPENAPI_SERVICES)}개, 이력조회 {len(OPENAPI_SERVICES)}개")
     lines.append("")
-    lines.append("| 번호 | 분류 | 업종 | slug | 조회 URL | 이력 URL | 편의 함수 |")
-    lines.append("|---:|---|---|---|---|---|---|")
+    lines.append("| 번호 | 분류 | 업종 | slug | 활용신청 | 조회 URL | 이력 URL | 편의 함수 |")
+    lines.append("|---:|---|---|---|---|---|---|---|")
     for row in OPENAPI_SERVICES:
         slug = row["slug"]
         lines.append(
             f"| {row['index']} | {esc(row['category'])} | {esc(row['name'])} | `{slug}` | "
+            f"[신청]({esc(row['application_url'])}) | "
             f"`{esc(row['info_url'])}` | `{esc(row['history_url'])}` | "
             f"`client.get_{slug}()`, `client.get_{slug}_history()` |"
         )
@@ -67,14 +73,104 @@ def write_api_list(root: Path) -> None:
     lines.append("")
     lines.append("```python")
     lines.append(
-        "from pymois import list_openapi_services, list_openapi_endpoints, list_file_downloads"
+        "from pymois import ("
+    )
+    lines.append(
+        "    list_file_downloads,"
+    )
+    lines.append(
+        "    list_incremental_openapi_endpoints,"
+    )
+    lines.append(
+        "    list_openapi_endpoints,"
+    )
+    lines.append(
+        "    list_openapi_services,"
+    )
+    lines.append(
+        ")"
     )
     lines.append("")
     lines.append("services = list_openapi_services()")
+    lines.append("incremental = list_incremental_openapi_endpoints()")
     lines.append('endpoints = list_openapi_endpoints(kind="history")')
     lines.append("downloads = list_file_downloads()")
     lines.append("```")
     (root / "api-list.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def write_incremental_openapi(root: Path) -> None:
+    lines: list[str] = []
+    lines.append("# 증분 OpenAPI 목록과 신청 링크")
+    lines.append("")
+    lines.append(
+        "이 문서는 data.go.kr 공지 `NOTICE_0000000004566`의 OpenAPI 활용신청 링크와 "
+        "붙임1의 변동분 조회 규칙을 기준으로 생성했습니다."
+    )
+    lines.append("")
+    lines.append("## 신청 방법")
+    lines.append("")
+    lines.append("1. 아래 목록에서 필요한 업종의 `신청` 링크를 엽니다.")
+    lines.append("2. 공공데이터포털에 로그인한 뒤 `활용신청`을 진행합니다.")
+    lines.append(
+        "3. 승인 후 발급된 디코딩 서비스키를 `MOIS_SERVICE_KEY` 또는 "
+        "`MoisClient`에 전달합니다."
+    )
+    lines.append("4. 여러 업종을 호출해야 하면 각 업종 OpenAPI의 활용 권한을 확인합니다.")
+    lines.append("")
+    lines.append("## 증분 조회 규칙")
+    lines.append("")
+    lines.append("- 기본 증분 조건은 `cond[DAT_UPDT_PNT::GTE]=YYYYMMDDHHMMSS`입니다.")
+    lines.append(
+        "- `DAT_UPDT_PNT`는 원천데이터 수정과 개방데이터 보강 수정 시점을 "
+        "함께 반영합니다."
+    )
+    lines.append(
+        "- 원천데이터 최종수정시점만 기준으로 삼을 때는 "
+        "`source_modified=True`를 사용해 `LAST_MDFCN_PNT::GTE`로 조회합니다."
+    )
+    lines.append(
+        "- `numOfRows`는 최대 100이며, 전체 동기화는 `totalCount`와 "
+        "`pageNo` 기반으로 페이지를 넘깁니다."
+    )
+    lines.append("")
+    lines.append("```python")
+    lines.append("from pymois import MoisClient, list_incremental_openapi_endpoints")
+    lines.append("")
+    lines.append("client = MoisClient.from_env()")
+    lines.append("")
+    lines.append('changed = client.get_updated_hospitals("20260505000000")')
+    lines.append("source_changed = client.get_updated_hospitals(")
+    lines.append('    "20260505000000",')
+    lines.append("    source_modified=True,")
+    lines.append(")")
+    lines.append("")
+    lines.append("for api in list_incremental_openapi_endpoints():")
+    lines.append("    print(api.service_slug, api.application_url, api.get_method)")
+    lines.append("```")
+    lines.append("")
+    lines.append("## 전체 증분 API 목록")
+    lines.append("")
+    lines.append(f"- 증분 조회 대상 OpenAPI: {len(INCREMENTAL_OPENAPI_ENDPOINTS)}개")
+    lines.append(
+        "- 모든 항목은 같은 호출 URL의 `info` 엔드포인트에 조건 파라미터를 "
+        "붙여 사용합니다."
+    )
+    lines.append("")
+    lines.append(
+        "| 번호 | 분류 | 업종 | slug | 신청 링크 | 증분 호출 URL | 기본 증분 함수 | 원천수정 증분 |"
+    )
+    lines.append("|---:|---|---|---|---|---|---|---|")
+    for number, row in enumerate(INCREMENTAL_OPENAPI_ENDPOINTS, start=1):
+        slug = row["service_slug"]
+        get_method = row["get_method"]
+        lines.append(
+            f"| {number} | {esc(row['category'])} | {esc(row['name'])} | `{slug}` | "
+            f"[신청]({esc(row['application_url'])}) | `{esc(row['info_url'])}` | "
+            f"`client.{get_method}(since)` | "
+            f"`client.{get_method}(since, source_modified=True)` |"
+        )
+    (root / "incremental-openapi.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def write_response_fields(root: Path) -> None:
@@ -118,6 +214,13 @@ def write_file_downloads(root: Path) -> None:
         "localdata 파일 다운로드는 인허가정보 195개 업종을 대상으로 제공합니다. "
         "파일은 CP949 CSV로 내려오며, 로더는 날짜, 시각, 숫자, EPSG:5174 좌표를 "
         "Python 타입과 WGS84 좌표로 변환합니다."
+    )
+    lines.append("")
+    lines.append(
+        "참고 PDF는 인허가정보 195종과 생활편의정보 14종, 총 209종을 언급합니다. "
+        "다만 2026년 5월 6일 현재 `file.localdata.go.kr`의 파일 다운로드 카탈로그에서 "
+        "확인되는 생활편의정보는 13종이므로, `pymois`는 실제 확인된 208종만 "
+        "카탈로그에 포함합니다."
     )
     lines.append("")
     lines.append("## 기본 사용")
@@ -175,6 +278,7 @@ def main() -> None:
     root = Path("docs")
     root.mkdir(exist_ok=True)
     write_api_list(root)
+    write_incremental_openapi(root)
     write_response_fields(root)
     write_file_downloads(root)
 

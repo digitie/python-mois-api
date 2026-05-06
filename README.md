@@ -7,6 +7,7 @@
 ## 주요 기능
 
 - 195개 업종 OpenAPI 조회와 이력조회 호출
+- 195개 업종 증분조회 편의 함수와 공공데이터포털 활용신청 링크 제공
 - `cond[필드::연산자]` 조건 파라미터 지원
 - API, 파일 다운로드, 응답변수 목록을 코드에서 조회
 - localdata CSV 다운로드와 Python 객체 리스트 로드
@@ -80,6 +81,16 @@ history_at = client.get_history_at(
 )
 ```
 
+업종별 증분 편의 함수도 동적으로 제공합니다.
+
+```python
+changed = client.get_updated_hospitals("20260505000000")
+source_changed = client.get_updated_hospitals(
+    "20260505000000",
+    source_modified=True,
+)
+```
+
 환경변수도 사용할 수 있습니다.
 
 ```bash
@@ -115,12 +126,18 @@ records = files.load("hospitals", org_code="3000000")  # 서울종로구
 
 ## 목록 확인
 
-API 종류가 많기 때문에 목록 확인 함수를 별도로 제공합니다.
+API 종류가 많기 때문에 목록 확인 함수를 별도로 제공합니다. `application_url`은 공공데이터포털 활용신청 페이지입니다.
 
 ```python
-from pymois import list_openapi_services, list_openapi_endpoints, list_file_downloads
+from pymois import (
+    list_file_downloads,
+    list_incremental_openapi_endpoints,
+    list_openapi_endpoints,
+    list_openapi_services,
+)
 
 services = list_openapi_services()
+incremental = list_incremental_openapi_endpoints()
 history_urls = list_openapi_endpoints(kind="history")
 downloads = list_file_downloads()
 ```
@@ -128,6 +145,7 @@ downloads = list_file_downloads()
 문서 목록:
 
 - [API 및 파일 다운로드 목록](docs/api-list.md)
+- [증분 OpenAPI 목록과 신청 링크](docs/incremental-openapi.md)
 - [파일 다운로드와 로드 API](docs/file-downloads.md)
 - [응답변수 매핑표](docs/response-fields.md)
 - [여행 플래너 활용 아키텍처](docs/travel-planner-architecture.md)
@@ -148,7 +166,7 @@ python -m mypy pymois
 
 ## 참고 출처
 
-- 공공데이터포털 공지 `NOTICE_0000000004566`
+- [공공데이터포털 공지 `NOTICE_0000000004566`](https://www.data.go.kr/bbs/ntc/selectNotice.do?pageIndex=1&originId=NOTICE_0000000004566&atchFileId=FILE_000000003615156&nttApiYn=Y&searchCondition2=2&searchKeyword1=%EC%9D%B8%ED%97%88%EA%B0%80)
 - 붙임1. 공공데이터포털 지방행정 인허가정보 API 호출 예시.pdf
 - 붙임2. 공공데이터포털 지방행정 인허가정보 API 호출 URL 목록.xlsx
 - 붙임3. 지방행정 인허가정보의 제공항목(응답변수) 매핑테이블_20260407수정.xlsx

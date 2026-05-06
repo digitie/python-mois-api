@@ -12,13 +12,14 @@ python -m mypy pymois
 
 ## 테스트 범위
 
-- 카탈로그 개수: OpenAPI 195개, 조회/이력조회 URL 390개, 인허가 파일 다운로드 195개
+- 카탈로그 개수: OpenAPI 195개, 조회/이력조회 URL 390개, 증분조회 195개, 인허가 파일 다운로드 195개
+- 공공데이터포털 활용신청 링크: 195개 업종별 `application_url` 중복/누락 방지
 - 응답변수 매핑: 삭제 항목 제외/포함 동작
 - OpenAPI 요청 파라미터: `cond[FIELD::OP]` 생성
 - 증분/이력 편의 메서드: `DAT_UPDT_PNT`, `LAST_MDFCN_PNT`, `BASE_DATE`, `OPN_ATMY_GRP_CD`
 - JSON/XML 응답 파싱과 resultCode 예외 매핑
 - localdata CSV 로드: CP949, 날짜, KST 시각, 숫자, 좌표 변환
-- 동적 편의 함수: `get_hospitals()`, `load_hospitals()` 계열
+- 동적 편의 함수: `get_hospitals()`, `get_updated_hospitals()`, `load_hospitals()` 계열
 
 ## 실제 호출 테스트를 추가할 때
 

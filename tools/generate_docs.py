@@ -15,6 +15,548 @@ from pymois.catalog import (  # noqa: E402
     RESPONSE_FIELDS,
 )
 
+TOURISM_LICENSE_SELECTION = (
+    {
+        "slug": "hospitals",
+        "group": "의료/안전",
+        "relation": "편의",
+        "priority": "상",
+        "use_case": "여행 중 응급/외래 진료 거점",
+    },
+    {
+        "slug": "clinics",
+        "group": "의료/안전",
+        "relation": "편의",
+        "priority": "상",
+        "use_case": "가벼운 질환과 지역 의원 접근성 분석",
+    },
+    {
+        "slug": "pharmacies",
+        "group": "의료/안전",
+        "relation": "편의",
+        "priority": "상",
+        "use_case": "상비약·처방약 구매 편의",
+    },
+    {
+        "slug": "over_the_counter_medicine_stores",
+        "group": "의료/안전",
+        "relation": "편의",
+        "priority": "중",
+        "use_case": "야간·휴일 안전상비의약품 구매 편의",
+    },
+    {
+        "slug": "emergency_patient_transport",
+        "group": "의료/안전",
+        "relation": "편의",
+        "priority": "중",
+        "use_case": "응급 이송 인프라 확인",
+    },
+    {
+        "slug": "optical_shops",
+        "group": "의료/안전",
+        "relation": "편의",
+        "priority": "보조",
+        "use_case": "안경·렌즈 파손 등 여행 중 생활 불편 대응",
+    },
+    {
+        "slug": "tourist_restaurants",
+        "group": "식음",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "관광식당 후보와 관광권역 식음 밀도 분석",
+    },
+    {
+        "slug": "general_restaurants",
+        "group": "식음",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "일반 음식점 POI와 상권 분석",
+    },
+    {
+        "slug": "rest_cafes",
+        "group": "식음",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "카페·휴게음식점 접근성 분석",
+    },
+    {
+        "slug": "bakeries",
+        "group": "식음",
+        "relation": "직접",
+        "priority": "중",
+        "use_case": "제과점·간식 구매 지점",
+    },
+    {
+        "slug": "instant_food_processors",
+        "group": "식음",
+        "relation": "간접",
+        "priority": "중",
+        "use_case": "즉석 제조 음식과 지역 먹거리 밀도",
+    },
+    {
+        "slug": "singing_bars",
+        "group": "야간/유흥",
+        "relation": "간접",
+        "priority": "보조",
+        "use_case": "야간 상권과 유흥 밀집도 참고",
+    },
+    {
+        "slug": "entertainment_bars",
+        "group": "야간/유흥",
+        "relation": "간접",
+        "priority": "보조",
+        "use_case": "유흥주점 밀집 구역과 야간 관광 상권 참고",
+    },
+    {
+        "slug": "tourist_entertainment_restaurants",
+        "group": "야간/유흥",
+        "relation": "직접",
+        "priority": "중",
+        "use_case": "관광유흥음식점 분포",
+    },
+    {
+        "slug": "foreigners_entertainment_restaurants",
+        "group": "야간/유흥",
+        "relation": "직접",
+        "priority": "중",
+        "use_case": "외국인 전용 유흥음식점 분포",
+    },
+    {
+        "slug": "tourist_accommodations",
+        "group": "숙박",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "관광숙박업 핵심 숙박 POI",
+    },
+    {
+        "slug": "lodgings",
+        "group": "숙박",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "일반 숙박업 분포와 숙박 수용력 추정",
+    },
+    {
+        "slug": "tourist_pensions",
+        "group": "숙박",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "관광펜션 분포와 체류형 관광 분석",
+    },
+    {
+        "slug": "rural_homestays",
+        "group": "숙박",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "농어촌민박과 로컬 체류 관광 분석",
+    },
+    {
+        "slug": "foreigner_city_homestays",
+        "group": "숙박",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "외국인관광도시민박 분포",
+    },
+    {
+        "slug": "general_campgrounds",
+        "group": "숙박",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "일반야영장과 캠핑 여행지 분석",
+    },
+    {
+        "slug": "auto_campgrounds",
+        "group": "숙박",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "자동차야영장과 차박·캠핑 동선 분석",
+    },
+    {
+        "slug": "hanok_experience",
+        "group": "숙박",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "한옥체험 숙박과 전통 체험 콘텐츠",
+    },
+    {
+        "slug": "domestic_travel_agencies",
+        "group": "여행업",
+        "relation": "직접",
+        "priority": "중",
+        "use_case": "국내여행 상품 공급자 분석",
+    },
+    {
+        "slug": "domestic_international_travel_agencies",
+        "group": "여행업",
+        "relation": "직접",
+        "priority": "중",
+        "use_case": "국내외 여행업 사업자 분포",
+    },
+    {
+        "slug": "comprehensive_travel_agencies",
+        "group": "여행업",
+        "relation": "직접",
+        "priority": "중",
+        "use_case": "종합여행업 사업자 분포",
+    },
+    {
+        "slug": "tourism_businesses",
+        "group": "관광/문화",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "관광사업자 핵심 카탈로그",
+    },
+    {
+        "slug": "tourist_cruises",
+        "group": "관광/문화",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "관광유람선과 수변 관광 동선",
+    },
+    {
+        "slug": "city_tour_businesses",
+        "group": "관광/문화",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "시내순환관광업과 도시 관광 교통",
+    },
+    {
+        "slug": "tourist_railways",
+        "group": "관광/문화",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "관광궤도업과 관광 이동 시설",
+    },
+    {
+        "slug": "museums_and_art_galleries",
+        "group": "관광/문화",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "박물관·미술관 관광 POI",
+    },
+    {
+        "slug": "performance_halls",
+        "group": "관광/문화",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "공연장과 문화관광 콘텐츠 분석",
+    },
+    {
+        "slug": "tourist_performance_halls",
+        "group": "관광/문화",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "관광공연장업 분포",
+    },
+    {
+        "slug": "tourist_theater_entertainment",
+        "group": "관광/문화",
+        "relation": "직접",
+        "priority": "중",
+        "use_case": "관광극장유흥업과 공연·야간 콘텐츠 참고",
+    },
+    {
+        "slug": "international_convention_facilities",
+        "group": "MICE",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "국제회의시설과 MICE 관광 인프라",
+    },
+    {
+        "slug": "international_convention_planners",
+        "group": "MICE",
+        "relation": "직접",
+        "priority": "중",
+        "use_case": "국제회의기획업 사업자 분포",
+    },
+    {
+        "slug": "amusement_facilities_other",
+        "group": "레저/놀이",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "기타 테마파크·유원시설 분포",
+    },
+    {
+        "slug": "general_amusement_facilities",
+        "group": "레저/놀이",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "일반 테마파크·유원시설 분포",
+    },
+    {
+        "slug": "comprehensive_amusement_facilities",
+        "group": "레저/놀이",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "종합테마파크업 분포",
+    },
+    {
+        "slug": "special_resorts",
+        "group": "레저/놀이",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "전문휴양업과 리조트형 관광 분석",
+    },
+    {
+        "slug": "comprehensive_resorts",
+        "group": "레저/놀이",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "종합휴양업과 복합 휴양지 분석",
+    },
+    {
+        "slug": "traditional_temples",
+        "group": "관광/문화",
+        "relation": "직접",
+        "priority": "중",
+        "use_case": "전통사찰과 역사·문화 관광지",
+    },
+    {
+        "slug": "local_culture_centers",
+        "group": "관광/문화",
+        "relation": "간접",
+        "priority": "중",
+        "use_case": "지방문화원과 지역 문화 콘텐츠 거점",
+    },
+    {
+        "slug": "pop_culture_art_planners",
+        "group": "관광/문화",
+        "relation": "간접",
+        "priority": "보조",
+        "use_case": "공연·행사 기획자와 지역 이벤트 공급자",
+    },
+    {
+        "slug": "cultural_art_corporations",
+        "group": "관광/문화",
+        "relation": "간접",
+        "priority": "보조",
+        "use_case": "문화예술법인 기반 지역 문화 인프라",
+    },
+    {
+        "slug": "movie_theaters",
+        "group": "도시여가",
+        "relation": "간접",
+        "priority": "중",
+        "use_case": "영화상영관과 실내 여가 POI",
+    },
+    {
+        "slug": "film_screenings",
+        "group": "도시여가",
+        "relation": "간접",
+        "priority": "보조",
+        "use_case": "영화상영업 시설 참고",
+    },
+    {
+        "slug": "pc_bangs",
+        "group": "도시여가",
+        "relation": "간접",
+        "priority": "보조",
+        "use_case": "도시형 실내 여가와 야간 체류 편의",
+    },
+    {
+        "slug": "mixed_game_providers",
+        "group": "도시여가",
+        "relation": "간접",
+        "priority": "보조",
+        "use_case": "복합유통게임제공업과 실내 여가 시설",
+    },
+    {
+        "slug": "general_game_providers",
+        "group": "도시여가",
+        "relation": "간접",
+        "priority": "보조",
+        "use_case": "일반게임제공업과 오락 시설",
+    },
+    {
+        "slug": "youth_game_providers",
+        "group": "도시여가",
+        "relation": "간접",
+        "priority": "보조",
+        "use_case": "청소년게임제공업과 가족 동반 여가 참고",
+    },
+    {
+        "slug": "karaoke_rooms",
+        "group": "도시여가",
+        "relation": "간접",
+        "priority": "보조",
+        "use_case": "노래연습장과 야간 여가 상권",
+    },
+    {
+        "slug": "video_viewing_rooms",
+        "group": "도시여가",
+        "relation": "간접",
+        "priority": "보조",
+        "use_case": "비디오물감상실업과 실내 여가 참고",
+    },
+    {
+        "slug": "golf_courses",
+        "group": "스포츠/레저",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "골프 관광과 체류형 레저 분석",
+    },
+    {
+        "slug": "golf_practice_ranges",
+        "group": "스포츠/레저",
+        "relation": "간접",
+        "priority": "중",
+        "use_case": "골프 연습장과 레저 상권",
+    },
+    {
+        "slug": "ski_resorts",
+        "group": "스포츠/레저",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "스키 관광 목적지",
+    },
+    {
+        "slug": "horse_riding",
+        "group": "스포츠/레저",
+        "relation": "직접",
+        "priority": "중",
+        "use_case": "승마 체험형 관광",
+    },
+    {
+        "slug": "sledding",
+        "group": "스포츠/레저",
+        "relation": "직접",
+        "priority": "중",
+        "use_case": "가족형 겨울 레저 목적지",
+    },
+    {
+        "slug": "yacht_marinas",
+        "group": "스포츠/레저",
+        "relation": "직접",
+        "priority": "상",
+        "use_case": "요트장과 해양 레저 관광",
+    },
+    {
+        "slug": "swimming_pools",
+        "group": "스포츠/레저",
+        "relation": "간접",
+        "priority": "중",
+        "use_case": "수영장과 가족·실내 레저",
+    },
+    {
+        "slug": "ice_rinks",
+        "group": "스포츠/레저",
+        "relation": "간접",
+        "priority": "중",
+        "use_case": "빙상장과 계절형 실내 레저",
+    },
+    {
+        "slug": "billiard_halls",
+        "group": "스포츠/레저",
+        "relation": "간접",
+        "priority": "보조",
+        "use_case": "당구장과 도시형 실내 여가",
+    },
+    {
+        "slug": "registered_sports_facilities",
+        "group": "스포츠/레저",
+        "relation": "간접",
+        "priority": "중",
+        "use_case": "등록체육시설과 스포츠 관광 기반",
+    },
+    {
+        "slug": "dance_halls",
+        "group": "스포츠/레저",
+        "relation": "간접",
+        "priority": "보조",
+        "use_case": "무도장과 야간·실내 여가 참고",
+    },
+    {
+        "slug": "comprehensive_sports_facilities",
+        "group": "스포츠/레저",
+        "relation": "간접",
+        "priority": "중",
+        "use_case": "종합체육시설과 스포츠 이벤트 입지",
+    },
+    {
+        "slug": "fitness_centers",
+        "group": "생활편의",
+        "relation": "편의",
+        "priority": "보조",
+        "use_case": "장기 체류 여행자의 운동 편의",
+    },
+    {
+        "slug": "public_baths",
+        "group": "생활편의",
+        "relation": "편의",
+        "priority": "중",
+        "use_case": "목욕장·사우나와 여행 중 휴식 편의",
+    },
+    {
+        "slug": "large_scale_retail_stores",
+        "group": "쇼핑/생활",
+        "relation": "간접",
+        "priority": "상",
+        "use_case": "대규모점포와 쇼핑 관광·생활 편의",
+    },
+    {
+        "slug": "beauty_salons",
+        "group": "쇼핑/생활",
+        "relation": "편의",
+        "priority": "보조",
+        "use_case": "미용 서비스와 장기 체류 편의",
+    },
+    {
+        "slug": "barber_shops",
+        "group": "쇼핑/생활",
+        "relation": "편의",
+        "priority": "보조",
+        "use_case": "이용업과 장기 체류 생활 편의",
+    },
+    {
+        "slug": "laundries",
+        "group": "쇼핑/생활",
+        "relation": "편의",
+        "priority": "중",
+        "use_case": "세탁업과 장기 체류·캠핑 여행 편의",
+    },
+    {
+        "slug": "oil_retailers",
+        "group": "이동/주유",
+        "relation": "편의",
+        "priority": "중",
+        "use_case": "렌터카·자차 여행 주유 편의",
+    },
+    {
+        "slug": "petroleum_alt_fuel_retailers",
+        "group": "이동/주유",
+        "relation": "편의",
+        "priority": "보조",
+        "use_case": "대체연료 판매 지점과 차량 이동 편의",
+    },
+    {
+        "slug": "animal_hospitals",
+        "group": "동반동물",
+        "relation": "편의",
+        "priority": "중",
+        "use_case": "반려동물 동반 여행 중 진료 거점",
+    },
+    {
+        "slug": "animal_pharmacies",
+        "group": "동반동물",
+        "relation": "편의",
+        "priority": "보조",
+        "use_case": "반려동물 약품 구매 편의",
+    },
+    {
+        "slug": "animal_boarding",
+        "group": "동반동물",
+        "relation": "편의",
+        "priority": "보조",
+        "use_case": "반려동물 위탁관리와 여행 활동 보조",
+    },
+    {
+        "slug": "pet_grooming",
+        "group": "동반동물",
+        "relation": "편의",
+        "priority": "보조",
+        "use_case": "반려동물 미용과 장기 체류 편의",
+    },
+)
+
 
 def esc(value: object) -> str:
     if value is None:
@@ -289,6 +831,107 @@ def write_file_downloads(root: Path) -> None:
     (root / "file-downloads.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def write_tourism_license_data(root: Path) -> None:
+    service_by_slug = {row["slug"]: row for row in OPENAPI_SERVICES}
+    download_by_slug = {row["slug"]: row for row in FILE_DOWNLOADS}
+    missing = [
+        str(row["slug"])
+        for row in TOURISM_LICENSE_SELECTION
+        if row["slug"] not in service_by_slug or row["slug"] not in download_by_slug
+    ]
+    if missing:
+        raise ValueError(f"관광 인허가 선별 목록에 없는 slug가 있습니다: {', '.join(missing)}")
+
+    group_counts: dict[str, int] = {}
+    for row in TOURISM_LICENSE_SELECTION:
+        group = str(row["group"])
+        group_counts[group] = group_counts.get(group, 0) + 1
+
+    lines: list[str] = []
+    lines.append("# 관광 관련 인허가 데이터 선별 목록")
+    lines.append("")
+    lines.append(
+        "이 문서는 `pymois.catalog`의 공식 인허가 OpenAPI/파일 다운로드 카탈로그에서 "
+        "관광과 직간접적으로 연결되는 업종만 선별해 생성했습니다."
+    )
+    lines.append("")
+    lines.append("## 선별 기준")
+    lines.append("")
+    lines.append(
+        "- `직접`: 숙박, 여행업, 관광시설, 공연·문화시설, 레저처럼 관광 목적지나 "
+        "관광 상품을 직접 구성하는 업종"
+    )
+    lines.append(
+        "- `간접`: 식음, 쇼핑, 도시 여가, 야간 상권처럼 여행 경험과 관광권역 "
+        "분석에 자주 쓰이는 업종"
+    )
+    lines.append(
+        "- `편의`: 병원, 약국, 주유, 세탁처럼 여행 중 편의·안전·장기 체류를 "
+        "보조하는 업종"
+    )
+    lines.append("")
+    lines.append(
+        "공급망, 제조, 도매, 백오피스 성격이 강하고 여행자 POI로 바로 쓰기 어려운 "
+        "업종은 제외했습니다. 전체 카탈로그는 [API 및 파일 다운로드 목록](api-list.md)을 "
+        "확인합니다."
+    )
+    lines.append("")
+    lines.append("## 요약")
+    lines.append("")
+    lines.append(f"- 선별 업종: {len(TOURISM_LICENSE_SELECTION)}개")
+    lines.append("- 좌표가 있는 행은 로더에서 WGS84 `(lon, lat)` 좌표로 함께 변환됩니다.")
+    lines.append("- 기본 적재와 분석은 `files.iter_<slug>()` 스트리밍 함수를 권장합니다.")
+    lines.append("")
+    lines.append("| 묶음 | 업종 수 |")
+    lines.append("|---|---:|")
+    for group, count in group_counts.items():
+        lines.append(f"| {esc(group)} | {count} |")
+    lines.append("")
+    lines.append("## 전체 선별 목록")
+    lines.append("")
+    lines.append("| 묶음 | 관련성 | 우선 | 업종 | slug | 활용 예 | 신청 링크 | 파일 로드 |")
+    lines.append("|---|---|---|---|---|---|---|---|")
+    for selection in TOURISM_LICENSE_SELECTION:
+        slug = str(selection["slug"])
+        service = service_by_slug[slug]
+        lines.append(
+            f"| {esc(selection['group'])} | {esc(selection['relation'])} | "
+            f"{esc(selection['priority'])} | {esc(service['name'])} | `{slug}` | "
+            f"{esc(selection['use_case'])} | [신청]({esc(service['application_url'])}) | "
+            f"`files.iter_{slug}()` |"
+        )
+    lines.append("")
+    lines.append("## 사용 예")
+    lines.append("")
+    lines.append("```python")
+    lines.append("from pymois import LocalDataFileClient")
+    lines.append("")
+    lines.append("files = LocalDataFileClient()")
+    lines.append("for record in files.iter_tourist_accommodations():")
+    lines.append("    point = record.coordinates.wgs84_point if record.coordinates else None")
+    lines.append("    print(record.business_name, point)")
+    lines.append("```")
+    lines.append("")
+    lines.append("여러 업종을 한 DB에 넣을 때는 `service_slug`를 함께 저장해 업종을 구분합니다.")
+    lines.append("")
+    lines.append("```python")
+    lines.append("TOURISM_SLUGS = [")
+    lines.append('    "tourist_accommodations",')
+    lines.append('    "lodgings",')
+    lines.append('    "tourist_restaurants",')
+    lines.append('    "pharmacies",')
+    lines.append("]")
+    lines.append("")
+    lines.append("for slug in TOURISM_SLUGS:")
+    lines.append("    for record in files.iter(slug):")
+    lines.append("        print(slug, record.business_name)")
+    lines.append("```")
+    (root / "tourism-license-data.md").write_text(
+        "\n".join(lines) + "\n",
+        encoding="utf-8",
+    )
+
+
 def main() -> None:
     root = Path("docs")
     root.mkdir(exist_ok=True)
@@ -296,6 +939,7 @@ def main() -> None:
     write_incremental_openapi(root)
     write_response_fields(root)
     write_file_downloads(root)
+    write_tourism_license_data(root)
 
 
 if __name__ == "__main__":

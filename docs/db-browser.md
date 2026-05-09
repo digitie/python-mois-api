@@ -51,6 +51,15 @@ wsl -d Ubuntu -- bash -lc "cd /mnt/f/dev/pykrmois && . .venv-wsl/bin/activate &&
 
 다른 업종 파일도 같은 방식으로 `--file`과 `--slug`를 바꿔 적재합니다. 같은 업종을 다시 넣을 때는 `--replace-slug`를 붙여 기존 해당 업종 데이터를 먼저 삭제합니다.
 
+전체 195개 인허가 파일을 모두 저장하고 적재할 때는 운영 스크립트를 사용합니다.
+
+```powershell
+wsl -d Ubuntu -- bash -lc "cd /mnt/f/dev/pykrmois && . .venv-wsl/bin/activate && export MOIS_DATABASE_URL='postgresql+psycopg://pymois:pymois@127.0.0.1:5433/pymois' && python -m tools.load_all_localdata_to_postgis --output-dir artifacts/localdata --progress-path artifacts/load_all_localdata_progress.jsonl --force-download --replace-slug --continue-on-error --batch-size 1000"
+```
+
+진행 상황은 `artifacts/load_all_localdata_progress.jsonl`에 JSONL 형식으로 남습니다.
+원본 파일만 먼저 저장하려면 같은 명령에서 DB URL과 `--replace-slug`를 빼고 `--download-only`를 붙입니다.
+
 ## 백엔드 실행
 
 ```powershell

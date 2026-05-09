@@ -6,12 +6,22 @@ import argparse
 import os
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, func, text
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from pymois import LocalDataRecord, create_postgis_schema, upsert_place
+from pymois import (
+    LocalDataRecord,
+    PlaceDetail,
+    PlaceMaster,
+    PlaceRecord,
+    create_postgis_schema,
+    record_to_place_record,
+)
+from pymois.db import place_detail_values, place_master_values
 from pymois.files import iter_records_from_binary
 
 
@@ -45,22 +55,23 @@ def load_records_to_postgis(
     *,
     batch_size: int = 1000,
 ) -> int:
-    """레코드 스트림을 순차 UPSERT하고 배치 단위로 커밋합니다."""
+    """레코드 스트림을 배치 UPSERT하고 배치 단위로 커밋합니다."""
 
     if batch_size < 1:
         raise ValueError("batch_size must be greater than 0")
 
     count = 0
-    has_pending = False
+    batch: list[LocalDataRecord] = []
     for record in records:
-        upsert_place(session, record)
+        batch.append(record)
         count += 1
-        has_pending = True
-        if count % batch_size == 0:
+        if len(batch) >= batch_size:
+            _bulk_upsert_places(session, batch)
             session.commit()
-            has_pending = False
+            batch = []
 
-    if has_pending:
+    if batch:
+        _bulk_upsert_places(session, batch)
         session.commit()
     return count
 
@@ -73,6 +84,71 @@ def delete_slug(engine: Engine, slug: str) -> None:
             text("delete from mois_place_master where service_slug = :slug"),
             {"slug": slug},
         )
+
+
+def _bulk_upsert_places(session: Session, records: list[LocalDataRecord]) -> None:
+    places = [record_to_place_record(record) for record in records]
+    deduped_places = _dedupe_places(places)
+    if not deduped_places:
+        return
+
+    master_rows = [place_master_values(place) for place in deduped_places]
+    master_insert = insert(PlaceMaster).values(master_rows)
+    master_update_values = _excluded_update_values(
+        master_insert,
+        master_rows[0],
+        skip={"place_id", "service_slug", "mng_no"},
+    )
+    master_update_values["updated_at"] = func.now()
+    master_statement = (
+        master_insert.on_conflict_do_update(
+            constraint="uq_mois_place_master_source",
+            set_=master_update_values,
+        )
+        .returning(PlaceMaster.service_slug, PlaceMaster.mng_no, PlaceMaster.place_id)
+    )
+    place_ids = {
+        (str(row.service_slug), str(row.mng_no)): row.place_id
+        for row in session.execute(master_statement)
+    }
+
+    detail_rows = [
+        place_detail_values(place, place_ids[(place.service_slug, place.mng_no or "")])
+        for place in deduped_places
+    ]
+    detail_insert = insert(PlaceDetail).values(detail_rows)
+    detail_update_values = _excluded_update_values(
+        detail_insert,
+        detail_rows[0],
+        skip={"place_id"},
+    )
+    detail_update_values["updated_at"] = func.now()
+    session.execute(
+        detail_insert.on_conflict_do_update(
+            index_elements=[PlaceDetail.place_id],
+            set_=detail_update_values,
+        )
+    )
+
+
+def _dedupe_places(places: Iterable[PlaceRecord]) -> list[PlaceRecord]:
+    deduped: dict[tuple[str, str], PlaceRecord] = {}
+    for place in places:
+        deduped[(place.service_slug, place.mng_no or "")] = place
+    return list(deduped.values())
+
+
+def _excluded_update_values(
+    insert_statement: Any,
+    values: dict[str, Any],
+    *,
+    skip: set[str],
+) -> dict[str, Any]:
+    return {
+        key: getattr(insert_statement.excluded, key)
+        for key in values
+        if key not in skip
+    }
 
 
 def main() -> None:

@@ -129,12 +129,12 @@ def test_load_records_to_postgis_commits_by_batch(monkeypatch: pytest.MonkeyPatc
         def commit(self) -> None:
             self.commits += 1
 
-    upserted: list[str | None] = []
+    batch_sizes: list[int] = []
 
-    def fake_upsert(session: object, record: object) -> None:
-        upserted.append(getattr(record, "management_number", None))
+    def fake_bulk_upsert(session: object, records: list[object]) -> None:
+        batch_sizes.append(len(records))
 
-    monkeypatch.setattr(load_postgis, "upsert_place", fake_upsert)
+    monkeypatch.setattr(load_postgis, "_bulk_upsert_places", fake_bulk_upsert)
     session = FakeSession()
     records = iter_records_from_bytes(CSV_TEXT.encode("cp949"), slug="hospitals")
 
@@ -142,7 +142,7 @@ def test_load_records_to_postgis_commits_by_batch(monkeypatch: pytest.MonkeyPatc
 
     assert count == 2
     assert session.commits == 2
-    assert upserted == ["PHMA1", "PHMA2"]
+    assert batch_sizes == [1, 1]
 
 
 def test_load_records_to_postgis_rejects_invalid_batch_size() -> None:

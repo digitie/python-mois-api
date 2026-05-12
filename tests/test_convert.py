@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from pymois.convert import KST, convert_value, field_for_header, to_date, to_datetime, to_number
+from mois.convert import KST, convert_value, field_for_header, to_date, to_datetime, to_number
 
 
 def test_field_for_header_uses_response_mapping_and_aliases() -> None:

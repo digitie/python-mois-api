@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from pymois import (
+from mois import (
     LocalDataFileClient,
     LocalDataRecord,
     create_postgis_schema,
@@ -14,7 +14,7 @@ from pymois import (
     record_to_place_record,
     upsert_place,
 )
-from pymois.db import build_place_models, place_master_values
+from mois.db import build_place_models, place_master_values
 
 
 @dataclass

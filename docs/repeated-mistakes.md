@@ -22,7 +22,7 @@
 ## API 목록
 
 - OpenAPI는 업종 195개이고, 각 업종마다 `info`와 `history`가 있습니다. 총 호출 URL은 390개입니다.
-- 목록을 손으로 옮기지 않습니다. `pymois/catalog.py`와 `tools/generate_docs.py`를 기준으로 관리합니다.
+- 목록을 손으로 옮기지 않습니다. `src/mois/catalog.py`와 `tools/generate_docs.py`를 기준으로 관리합니다.
 - 활용신청 링크는 공지 페이지의 `api-list` 링크에서 추출한 `application_url`을 사용합니다.
 - 증분 OpenAPI 목록을 바꾸면 `INCREMENTAL_OPENAPI_ENDPOINTS`와 `docs/incremental-openapi.md`도 함께 갱신합니다.
 - localdata 파일 다운로드는 인허가정보 195개를 기본 대상으로 합니다. 생활편의정보는 별도 kind로 남겨 둡니다.

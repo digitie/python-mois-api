@@ -1,10 +1,10 @@
-"""pymois 예외 계층."""
+"""mois 예외 계층."""
 
 from __future__ import annotations
 
 
 class MoisError(Exception):
-    """pymois 공통 예외."""
+    """mois 공통 예외."""
 
 
 class MoisAuthError(MoisError):

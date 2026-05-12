@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pymois"
+name = "python-mois-api"
 version = "0.1.0"
 description = "Python client for Korean MOIS local license OpenAPI and localdata file downloads."
 readme = "README.md"
@@ -47,7 +47,11 @@ web = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["pymois*", "apps*"]
+where = ["src"]
+include = ["mois*", "apps*"]
+
+[tool.setuptools.package-data]
+mois = ["py.typed"]
 
 [tool.ruff]
 line-length = 100
@@ -63,6 +67,7 @@ warn_unused_ignores = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 addopts = "-ra"
 markers = [
   "live: real network tests that require MOIS_SERVICE_KEY",

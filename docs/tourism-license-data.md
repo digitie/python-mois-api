@@ -1,6 +1,6 @@
 # 관광 관련 인허가 데이터 선별 목록
 
-이 문서는 `pymois.catalog`의 공식 인허가 OpenAPI/파일 다운로드 카탈로그에서 관광과 직간접적으로 연결되는 업종만 선별해 생성했습니다.
+이 문서는 `mois.catalog`의 공식 인허가 OpenAPI/파일 다운로드 카탈로그에서 관광과 직간접적으로 연결되는 업종만 선별해 생성했습니다.
 
 ## 선별 기준
 
@@ -118,7 +118,7 @@
 ## 사용 예
 
 ```python
-from pymois import LocalDataFileClient
+from mois import LocalDataFileClient
 
 files = LocalDataFileClient()
 for record in files.iter_tourist_accommodations():

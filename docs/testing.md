@@ -7,7 +7,7 @@
 ```bash
 python -m pytest
 python -m ruff check .
-python -m mypy pymois
+python -m mypy src/mois
 ```
 
 ## 테스트 범위
@@ -31,7 +31,7 @@ python -m mypy pymois
 ```python
 import os
 import pytest
-from pymois import MoisClient
+from mois import MoisClient
 
 @pytest.mark.live
 def test_live_hospitals_first_page():

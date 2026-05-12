@@ -131,7 +131,7 @@ export default function App() {
               <Database size={22} aria-hidden="true" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold tracking-normal text-ink">pymois DB 브라우저</h1>
+              <h1 className="text-lg font-semibold tracking-normal text-ink">mois DB 브라우저</h1>
               <p className="text-sm text-slate-500">mois_place_master / mois_place_detail</p>
             </div>
           </div>

@@ -7,15 +7,15 @@ import pytest
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.schema import CreateTable
 
-from pymois import (
+from mois import (
     PlaceMaster,
     PlaceRecord,
     build_place_models,
     infer_domain_category,
     record_to_place_record,
 )
-from pymois.db import place_master_values
-from pymois.files import load_records_from_text
+from mois.db import place_master_values
+from mois.files import load_records_from_text
 
 CSV_TEXT = (
     "개방자치단체코드,관리번호,인허가일자,폐업일자,영업상태코드,영업상태명,사업장명,"

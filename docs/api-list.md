@@ -411,7 +411,7 @@
 ## 코드에서 목록 확인
 
 ```python
-from pymois import (
+from mois import (
     list_file_downloads,
     list_incremental_openapi_endpoints,
     list_openapi_endpoints,

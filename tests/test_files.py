@@ -7,8 +7,8 @@ from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from pymois import BusinessStatusCategory
-from pymois.files import (
+from mois import BusinessStatusCategory
+from mois.files import (
     LocalDataFileClient,
     iter_records_from_binary,
     iter_records_from_bytes,

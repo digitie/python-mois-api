@@ -1,6 +1,6 @@
 # 기여 안내
 
-`pymois`에 기여할 때는 공식 자료와 실제 응답 사이의 차이를 분리해서 기록해 주세요.
+`python-mois-api`에 기여할 때는 공식 자료와 실제 응답 사이의 차이를 분리해서 기록해 주세요.
 
 ## 개발 환경
 
@@ -13,7 +13,7 @@ python -m pytest
 
 - `python -m pytest`
 - `python -m ruff check .`
-- `python -m mypy pymois`
+- `python -m mypy src/mois`
 - 문서가 한국어로 유지되는지 확인
 
 ## live 테스트
@@ -24,7 +24,7 @@ python -m pytest
 
 공식 첨부자료가 바뀌면 다음을 함께 갱신합니다.
 
-- `pymois/catalog.py`
+- `src/mois/catalog.py`
 - `docs/api-list.md`
 - `docs/file-downloads.md`
 - `docs/response-fields.md`

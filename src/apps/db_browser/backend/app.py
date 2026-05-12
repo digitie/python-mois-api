@@ -1,4 +1,4 @@
-"""pymois PostGIS DB를 조회하는 FastAPI 백엔드."""
+"""mois PostGIS DB를 조회하는 FastAPI 백엔드."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from sqlalchemy import case, create_engine, func, or_, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from pymois import PlaceDetail, PlaceMaster, list_file_downloads
+from mois import PlaceDetail, PlaceMaster, list_file_downloads
 
 DEFAULT_LIMIT = 50
 MAX_LIMIT = 200
@@ -39,7 +39,7 @@ def create_app(
     """
 
     app = FastAPI(
-        title="pymois DB 브라우저",
+        title="mois DB 브라우저",
         description="행정안전부 인허가정보 PostGIS 적재 결과를 조회합니다.",
         version="0.1.0",
     )
@@ -114,7 +114,7 @@ def create_app(
 
 
 class SQLAlchemyPlaceRepository:
-    """SQLAlchemy 세션으로 pymois 적재 테이블을 조회합니다."""
+    """SQLAlchemy 세션으로 mois 적재 테이블을 조회합니다."""
 
     def __init__(self, engine: Engine) -> None:
         self._session_factory: Callable[[], Session] = sessionmaker(bind=engine)

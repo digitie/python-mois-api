@@ -14,7 +14,7 @@
 ## 변경 전 확인
 
 - `docs/repeated-mistakes.md`를 먼저 확인합니다.
-- OpenAPI 목록 변경은 `pymois/catalog.py`, `docs/api-list.md`, `docs/response-fields.md`가 함께 갱신되어야 합니다.
+- OpenAPI 목록 변경은 `src/mois/catalog.py`, `docs/api-list.md`, `docs/response-fields.md`가 함께 갱신되어야 합니다.
 - 파일 로더 변경은 좌표 변환, 날짜/시각 변환, 빈 값 보존 테스트를 함께 확인합니다.
 
 ## 검증
@@ -22,5 +22,5 @@
 ```bash
 python -m pytest
 python -m ruff check .
-python -m mypy pymois
+python -m mypy src/mois
 ```

@@ -6,9 +6,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
 
-from pymois.catalog import (  # noqa: E402
+from mois.catalog import (  # noqa: E402
     FILE_DOWNLOADS,
     INCREMENTAL_OPENAPI_ENDPOINTS,
     OPENAPI_SERVICES,
@@ -615,7 +615,7 @@ def write_api_list(root: Path) -> None:
     lines.append("")
     lines.append("```python")
     lines.append(
-        "from pymois import ("
+        "from mois import ("
     )
     lines.append(
         "    list_file_downloads,"
@@ -677,7 +677,7 @@ def write_incremental_openapi(root: Path) -> None:
     )
     lines.append("")
     lines.append("```python")
-    lines.append("from pymois import MoisClient, list_incremental_openapi_endpoints")
+    lines.append("from mois import MoisClient, list_incremental_openapi_endpoints")
     lines.append("")
     lines.append("client = MoisClient.from_env()")
     lines.append("")
@@ -761,14 +761,14 @@ def write_file_downloads(root: Path) -> None:
     lines.append(
         "참고 PDF는 인허가정보 195종과 생활편의정보 14종, 총 209종을 언급합니다. "
         "다만 2026년 5월 6일 현재 `file.localdata.go.kr`의 파일 다운로드 카탈로그에서 "
-        "확인되는 생활편의정보는 13종이므로, `pymois`는 실제 확인된 208종만 "
+        "확인되는 생활편의정보는 13종이므로, `mois`는 실제 확인된 208종만 "
         "카탈로그에 포함합니다."
     )
     lines.append("")
     lines.append("## 기본 사용")
     lines.append("")
     lines.append("```python")
-    lines.append("from pymois import LocalDataFileClient")
+    lines.append("from mois import LocalDataFileClient")
     lines.append("")
     lines.append("files = LocalDataFileClient()")
     lines.append('records = files.load("hospitals")')
@@ -851,7 +851,7 @@ def write_tourism_license_data(root: Path) -> None:
     lines.append("# 관광 관련 인허가 데이터 선별 목록")
     lines.append("")
     lines.append(
-        "이 문서는 `pymois.catalog`의 공식 인허가 OpenAPI/파일 다운로드 카탈로그에서 "
+        "이 문서는 `mois.catalog`의 공식 인허가 OpenAPI/파일 다운로드 카탈로그에서 "
         "관광과 직간접적으로 연결되는 업종만 선별해 생성했습니다."
     )
     lines.append("")
@@ -904,7 +904,7 @@ def write_tourism_license_data(root: Path) -> None:
     lines.append("## 사용 예")
     lines.append("")
     lines.append("```python")
-    lines.append("from pymois import LocalDataFileClient")
+    lines.append("from mois import LocalDataFileClient")
     lines.append("")
     lines.append("files = LocalDataFileClient()")
     lines.append("for record in files.iter_tourist_accommodations():")

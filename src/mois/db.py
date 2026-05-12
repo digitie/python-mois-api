@@ -450,7 +450,7 @@ def build_place_models(
 
 
 def create_postgis_schema(engine: Engine, *, create_extension: bool = True) -> None:
-    """PostGIS 확장과 `pymois` 테이블을 생성합니다."""
+    """PostGIS 확장과 `mois` 테이블을 생성합니다."""
 
     with engine.begin() as connection:
         if create_extension:

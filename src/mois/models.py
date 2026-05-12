@@ -16,7 +16,7 @@ LocalDataRow: TypeAlias = Mapping[str, Any]
 
 
 class CoordinateReferenceSystem(StrEnum):
-    """pymois가 명시적으로 다루는 좌표계."""
+    """mois가 명시적으로 다루는 좌표계."""
 
     KATEC = "EPSG:5174"
     WGS84 = "EPSG:4326"

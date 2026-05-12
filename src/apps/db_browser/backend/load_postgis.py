@@ -13,7 +13,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from pymois import (
+from mois import (
     LocalDataRecord,
     PlaceDetail,
     PlaceMaster,
@@ -21,8 +21,8 @@ from pymois import (
     create_postgis_schema,
     record_to_place_record,
 )
-from pymois.db import place_detail_values, place_master_values
-from pymois.files import iter_records_from_binary
+from mois.db import place_detail_values, place_master_values
+from mois.files import iter_records_from_binary
 
 
 def load_download_file_to_postgis(
@@ -155,7 +155,7 @@ def main() -> None:
     """명령행 진입점."""
 
     parser = argparse.ArgumentParser(
-        description="다운로드된 localdata CSV/ZIP 파일을 pymois PostGIS 테이블에 적재합니다.",
+        description="다운로드된 localdata CSV/ZIP 파일을 mois PostGIS 테이블에 적재합니다.",
     )
     parser.add_argument("--file", required=True, help="다운로드된 CSV/ZIP 파일 경로")
     parser.add_argument("--slug", required=True, help="파일 카탈로그 slug")

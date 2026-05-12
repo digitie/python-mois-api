@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from pymois import (
+from mois import (
     FileDownloadKind,
     OpenApiKind,
     get_file_download,
@@ -14,7 +14,7 @@ from pymois import (
     list_openapi_services,
     list_response_fields,
 )
-from pymois.exceptions import MoisCatalogError
+from mois.exceptions import MoisCatalogError
 
 
 def test_openapi_catalog_contains_all_notice_services() -> None:

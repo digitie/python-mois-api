@@ -1,6 +1,6 @@
-# pymois 유지보수 스킬
+# python-mois-api 유지보수 스킬
 
-이 스킬은 `pymois` 저장소에서 행정안전부 지방행정 인허가정보 API와 localdata 파일 다운로드 기능을 수정할 때 사용합니다.
+이 스킬은 `python-mois-api` 저장소에서 행정안전부 지방행정 인허가정보 API와 localdata 파일 다운로드 기능을 수정할 때 사용합니다.
 
 ## 핵심 맥락
 

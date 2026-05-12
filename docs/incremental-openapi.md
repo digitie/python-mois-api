@@ -17,7 +17,7 @@
 - `numOfRows`는 최대 100이며, 전체 동기화는 `totalCount`와 `pageNo` 기반으로 페이지를 넘깁니다.
 
 ```python
-from pymois import MoisClient, list_incremental_openapi_endpoints
+from mois import MoisClient, list_incremental_openapi_endpoints
 
 client = MoisClient.from_env()
 

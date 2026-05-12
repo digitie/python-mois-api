@@ -1,6 +1,6 @@
 # DB 브라우저 웹앱
 
-`apps/db_browser`는 `pymois`로 PostGIS에 적재한 인허가 DB를 간단히 조회하는 웹앱입니다. 백엔드는 FastAPI, 프론트엔드는 React와 Tailwind CSS 기반입니다.
+`apps/db_browser`는 `mois`로 PostGIS에 적재한 인허가 DB를 간단히 조회하는 웹앱입니다. 백엔드는 FastAPI, 프론트엔드는 React와 Tailwind CSS 기반입니다.
 
 ## 구성
 
@@ -13,14 +13,14 @@
 
 ## WSL에서 PostgreSQL/PostGIS 준비
 
-WSL Ubuntu에서 PostgreSQL 16과 PostGIS를 설치한 뒤 `pymois` 전용 DB와 계정을 만듭니다.
+WSL Ubuntu에서 PostgreSQL 16과 PostGIS를 설치한 뒤 `mois` 전용 DB와 계정을 만듭니다.
 
 ```powershell
 wsl -d Ubuntu -u root -- bash -lc "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y postgresql postgresql-contrib postgis postgresql-16-postgis-3 postgresql-16-postgis-3-scripts && pg_ctlcluster 16 main start"
 
-wsl -d Ubuntu -u root -- bash -lc "runuser -u postgres -- psql -p 5433 -c \"CREATE ROLE pymois LOGIN PASSWORD 'pymois';\" || true"
-wsl -d Ubuntu -u root -- bash -lc "runuser -u postgres -- createdb -p 5433 -O pymois pymois || true"
-wsl -d Ubuntu -u root -- bash -lc "runuser -u postgres -- psql -p 5433 -d pymois -c 'CREATE EXTENSION IF NOT EXISTS postgis;'"
+wsl -d Ubuntu -u root -- bash -lc "runuser -u postgres -- psql -p 5433 -c \"CREATE ROLE mois LOGIN PASSWORD 'mois';\" || true"
+wsl -d Ubuntu -u root -- bash -lc "runuser -u postgres -- createdb -p 5433 -O mois mois || true"
+wsl -d Ubuntu -u root -- bash -lc "runuser -u postgres -- psql -p 5433 -d mois -c 'CREATE EXTENSION IF NOT EXISTS postgis;'"
 ```
 
 설치 환경에 따라 PostgreSQL 포트가 `5432` 또는 `5433`일 수 있습니다. 실제 포트는 다음 명령으로 확인합니다.
@@ -41,12 +41,12 @@ artifacts/localdata/hospitals_info.bin
 
 ## 다운로드 파일 적재
 
-이미 내려받은 localdata CSV/ZIP 파일은 `apps.db_browser.backend.load_postgis` CLI로 적재합니다. 파일은 CP949 CSV 또는 ZIP을 모두 처리하며, 좌표는 기존 `pymois` 로더를 거쳐 WGS84 `(lon, lat)`와 PostGIS `geometry(Point, 4326)`로 저장합니다.
+이미 내려받은 localdata CSV/ZIP 파일은 `apps.db_browser.backend.load_postgis` CLI로 적재합니다. 파일은 CP949 CSV 또는 ZIP을 모두 처리하며, 좌표는 기존 `mois` 로더를 거쳐 WGS84 `(lon, lat)`와 PostGIS `geometry(Point, 4326)`로 저장합니다.
 
 ```powershell
-wsl -d Ubuntu -- bash -lc "cd /mnt/f/dev/pykrmois && python3 -m venv .venv-wsl && . .venv-wsl/bin/activate && python -m pip install -U pip && python -m pip install -e '.[web]'"
+wsl -d Ubuntu -- bash -lc "cd /mnt/f/dev/python-mois-api && python3 -m venv .venv-wsl && . .venv-wsl/bin/activate && python -m pip install -U pip && python -m pip install -e '.[web]'"
 
-wsl -d Ubuntu -- bash -lc "cd /mnt/f/dev/pykrmois && . .venv-wsl/bin/activate && export MOIS_DATABASE_URL='postgresql+psycopg://pymois:pymois@127.0.0.1:5433/pymois' && python -m apps.db_browser.backend.load_postgis --file artifacts/localdata/hospitals_info.bin --slug hospitals --replace-slug"
+wsl -d Ubuntu -- bash -lc "cd /mnt/f/dev/python-mois-api && . .venv-wsl/bin/activate && export MOIS_DATABASE_URL='postgresql+psycopg://mois:mois@127.0.0.1:5433/mois' && python -m apps.db_browser.backend.load_postgis --file artifacts/localdata/hospitals_info.bin --slug hospitals --replace-slug"
 ```
 
 다른 업종 파일도 같은 방식으로 `--file`과 `--slug`를 바꿔 적재합니다. 같은 업종을 다시 넣을 때는 `--replace-slug`를 붙여 기존 해당 업종 데이터를 먼저 삭제합니다.
@@ -54,7 +54,7 @@ wsl -d Ubuntu -- bash -lc "cd /mnt/f/dev/pykrmois && . .venv-wsl/bin/activate &&
 전체 195개 인허가 파일을 모두 저장하고 적재할 때는 운영 스크립트를 사용합니다.
 
 ```powershell
-wsl -d Ubuntu -- bash -lc "cd /mnt/f/dev/pykrmois && . .venv-wsl/bin/activate && export MOIS_DATABASE_URL='postgresql+psycopg://pymois:pymois@127.0.0.1:5433/pymois' && python -m tools.load_all_localdata_to_postgis --output-dir artifacts/localdata --progress-path artifacts/load_all_localdata_progress.jsonl --force-download --replace-slug --continue-on-error --batch-size 1000"
+wsl -d Ubuntu -- bash -lc "cd /mnt/f/dev/python-mois-api && . .venv-wsl/bin/activate && export MOIS_DATABASE_URL='postgresql+psycopg://mois:mois@127.0.0.1:5433/mois' && python -m tools.load_all_localdata_to_postgis --output-dir artifacts/localdata --progress-path artifacts/load_all_localdata_progress.jsonl --force-download --replace-slug --continue-on-error --batch-size 1000"
 ```
 
 진행 상황은 `artifacts/load_all_localdata_progress.jsonl`에 JSONL 형식으로 남습니다.
@@ -74,7 +74,7 @@ python -m apps.db_browser.backend
 WSL에서 빌드된 프론트엔드를 FastAPI가 함께 서빙하게 하려면 다음처럼 실행합니다.
 
 ```powershell
-wsl -d Ubuntu -- bash -lc "cd /mnt/f/dev/pykrmois && . .venv-wsl/bin/activate && export MOIS_DATABASE_URL='postgresql+psycopg://pymois:pymois@127.0.0.1:5433/pymois' MOIS_WEB_HOST=0.0.0.0 MOIS_WEB_PORT=5173 && python -m apps.db_browser.backend"
+wsl -d Ubuntu -- bash -lc "cd /mnt/f/dev/python-mois-api && . .venv-wsl/bin/activate && export MOIS_DATABASE_URL='postgresql+psycopg://mois:mois@127.0.0.1:5433/mois' MOIS_WEB_HOST=0.0.0.0 MOIS_WEB_PORT=5173 && python -m apps.db_browser.backend"
 ```
 
 이 경우 Windows 브라우저에서는 `http://127.0.0.1:5173/`로 접속합니다.

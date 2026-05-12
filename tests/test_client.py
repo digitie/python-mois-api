@@ -6,10 +6,10 @@ from typing import Any
 
 import pytest
 
-from pymois import list_incremental_openapi_endpoints
-from pymois.client import MoisClient
-from pymois.exceptions import MoisAuthError, MoisRequestError
-from pymois.models import Condition, ConditionOperator, OpenApiKind
+from mois import list_incremental_openapi_endpoints
+from mois.client import MoisClient
+from mois.exceptions import MoisAuthError, MoisRequestError
+from mois.models import Condition, ConditionOperator, OpenApiKind
 
 
 @dataclass

@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from pymois import (
+from mois import (
     Coordinate,
     CoordinateReferenceSystem,
     KatecPoint,
     StationCoordinates,
     Wgs84Point,
 )
-from pymois.coords import epsg5174_to_wgs84, station_coordinates_from_katec
+from mois.coords import epsg5174_to_wgs84, station_coordinates_from_katec
 
 
 def test_wgs84_point_uses_lon_lat_order() -> None:

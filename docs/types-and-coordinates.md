@@ -1,6 +1,6 @@
 # 타입과 좌표 값 객체
 
-`pymois`는 외부 프로그램에서 안정적으로 재사용할 수 있도록 공개 enum, 타입 별칭, 좌표 값 객체를 제공합니다. 기존 `Coordinate.x`, `Coordinate.y`, `Coordinate.lon`, `Coordinate.lat` 접근은 그대로 유지합니다.
+`mois`는 외부 프로그램에서 안정적으로 재사용할 수 있도록 공개 enum, 타입 별칭, 좌표 값 객체를 제공합니다. 기존 `Coordinate.x`, `Coordinate.y`, `Coordinate.lon`, `Coordinate.lat` 접근은 그대로 유지합니다.
 
 ## 좌표 순서 원칙
 
@@ -16,7 +16,7 @@
 localdata 원본 `좌표정보(X)`, `좌표정보(Y)`를 표현합니다.
 
 ```python
-from pymois import KatecPoint
+from mois import KatecPoint
 
 katec = KatecPoint(199642.716240024, 452606.614384676)
 print(katec.as_tuple())  # (x, y)
@@ -31,7 +31,7 @@ print(wgs84.lon, wgs84.lat)
 WGS84 경도/위도 좌표를 표현합니다. 생성자와 tuple 반환 순서는 항상 `(lon, lat)`입니다.
 
 ```python
-from pymois import Wgs84Point
+from mois import Wgs84Point
 
 point = Wgs84Point(lon=126.978, lat=37.5665)
 print(point.as_tuple())             # (126.978, 37.5665)
@@ -46,7 +46,7 @@ print(point.to_wkt())               # POINT(126.978 37.5665)
 KATEC 원본 좌표와 WGS84 변환 좌표를 함께 담습니다. 기존 `station.katec_x`, `station.katec_y`, `station.lon`, `station.lat` 스타일 접근을 지원하면서 값 객체도 제공합니다.
 
 ```python
-from pymois import StationCoordinates
+from mois import StationCoordinates
 
 coords = StationCoordinates.from_katec(199642.716240024, 452606.614384676)
 
@@ -74,7 +74,7 @@ print(coordinate.station_coordinates.to_wkt())  # WGS84 Point WKT
 ## 변환 helper
 
 ```python
-from pymois.coords import (
+from mois.coords import (
     epsg5174_to_wgs84,
     epsg5174_to_wgs84_point,
     station_coordinates_from_katec,
@@ -101,7 +101,7 @@ coords = station_coordinates_from_katec(199642.716240024, 452606.614384676)
 예시:
 
 ```python
-from pymois import Condition, ConditionOperator, OpenApiKind, list_openapi_endpoints
+from mois import Condition, ConditionOperator, OpenApiKind, list_openapi_endpoints
 
 history = list_openapi_endpoints(kind=OpenApiKind.HISTORY)
 condition = Condition("DAT_UPDT_PNT", ConditionOperator.GTE, "20260505000000")

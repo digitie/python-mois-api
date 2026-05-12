@@ -1,13 +1,13 @@
 # PostgreSQL/PostGIS DB 적재
 
-`pymois`는 localdata CSV 또는 OpenAPI 응답을 공통 검색용 마스터 테이블과 업종별 JSONB 상세 테이블로 저장할 수 있는 SQLAlchemy 2 모델을 제공합니다. 좌표는 로더에서 EPSG:5174 원본 `(x, y)` 좌표를 WGS84 `(lon, lat)`로 변환한 뒤 PostGIS `geometry(Point, 4326)`으로 저장합니다.
+`mois`는 localdata CSV 또는 OpenAPI 응답을 공통 검색용 마스터 테이블과 업종별 JSONB 상세 테이블로 저장할 수 있는 SQLAlchemy 2 모델을 제공합니다. 좌표는 로더에서 EPSG:5174 원본 `(x, y)` 좌표를 WGS84 `(lon, lat)`로 변환한 뒤 PostGIS `geometry(Point, 4326)`으로 저장합니다.
 
 ## 의존성
 
 기본 설치에 DB 적재에 필요한 패키지가 포함됩니다.
 
 ```bash
-pip install pymois
+pip install python-mois-api
 ```
 
 개발 저장소에서는 다음처럼 설치합니다.
@@ -78,7 +78,7 @@ create index ix_mois_place_master_road_name
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from pymois import LocalDataFileClient, create_postgis_schema, upsert_place
+from mois import LocalDataFileClient, create_postgis_schema, upsert_place
 
 engine = create_engine("postgresql+psycopg://user:password@localhost:5432/mois")
 create_postgis_schema(engine)
@@ -92,7 +92,7 @@ with Session(engine) as session:
 대용량 업종은 `load_hospitals()`처럼 전체 목록을 만드는 방식보다 `iter_hospitals()`로 순회하며 배치 적재하는 방식을 권장합니다. 단일 레코드를 직접 변환할 수도 있습니다.
 
 ```python
-from pymois import LocalDataFileClient, build_place_models, record_to_place_record
+from mois import LocalDataFileClient, build_place_models, record_to_place_record
 
 records = LocalDataFileClient().iter_hospitals()
 place = record_to_place_record(next(records))
@@ -112,7 +112,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
-from pymois import MoisClient
+from mois import MoisClient
 
 client = MoisClient.from_env()
 since = datetime(2026, 5, 5, tzinfo=ZoneInfo("Asia/Seoul"))
@@ -130,7 +130,7 @@ rows = client.get_updated_hospitals(since)
 
 인허가 데이터의 공통 필드만으로 법정동코드나 도로명주소코드가 항상 직접 제공되지는 않습니다. 안정적인 연계를 위해서는 주소 문자열, 좌표, 우편번호를 함께 사용해 보강하는 방식이 좋습니다.
 
-| 연계 대상 | 공식 자료 | pymois 기준 필드 | 연계 방식 | 판단 |
+| 연계 대상 | 공식 자료 | mois 기준 필드 | 연계 방식 | 판단 |
 |---|---|---|---|---|
 | 법정동코드 | [행정안전부_행정표준코드_법정동코드](https://www.data.go.kr/data/15077871/openapi.do?recommendDataYn=Y) | `legal_dong_code`, `road_address`, `lot_address`, `lon/lat` | 이미 `ADM_CD`/`LEGAL_DONG_CD`가 있으면 직접 조인. 없으면 도로명주소 API 결과의 행정구역코드 또는 법정구역 경계 공간조인으로 보강 | 높음 |
 | 도로명코드 | [도로명주소 개발자센터 API신청](https://www.juso.go.kr/addrlink/openApi/apiExprn.do?cPath=99MA) | `road_name_code`, `road_address`, `road_zip` | 도로명주소 검색 API의 `도로명코드`를 주소 기반으로 보강 | 높음 |

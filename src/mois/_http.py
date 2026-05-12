@@ -11,7 +11,7 @@ from urllib3.util.retry import Retry
 
 from .exceptions import MoisRequestError, MoisServerError
 
-DEFAULT_USER_AGENT = "pymois/0.1 (+https://github.com/digitie/pymois)"
+DEFAULT_USER_AGENT = "python-mois-api/0.1 (+https://github.com/digitie/python-mois-api)"
 
 
 def build_session(retries: int = 2) -> Session:
@@ -35,7 +35,7 @@ def build_session(retries: int = 2) -> Session:
 
 
 def raise_for_http_error(response: Any, context: str) -> None:
-    """HTTP 상태코드를 pymois 예외로 매핑합니다."""
+    """HTTP 상태코드를 mois 예외로 매핑합니다."""
 
     status = getattr(response, "status_code", None)
     if status is None or 200 <= int(status) < 400:

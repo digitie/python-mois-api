@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from collections.abc import Iterable, Iterator
 from datetime import datetime
 from pathlib import Path
@@ -14,15 +15,18 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from apps.db_browser.backend.load_postgis import delete_slug, load_records_to_postgis
-from pymois import (
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from apps.db_browser.backend.load_postgis import delete_slug, load_records_to_postgis  # noqa: E402
+from mois import (  # noqa: E402
     FileDownload,
     LocalDataFileClient,
     LocalDataRecord,
     create_postgis_schema,
     list_file_downloads,
 )
-from pymois.files import iter_records_from_binary
+from mois.files import iter_records_from_binary  # noqa: E402
 
 
 def main() -> None:

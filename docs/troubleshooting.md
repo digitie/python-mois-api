@@ -27,7 +27,7 @@ text = content.decode("cp949")
 
 ## 좌표가 이상합니다
 
-localdata 인허가정보 좌표는 WGS84가 아니라 EPSG:5174입니다. `pymois`는 원본 `CRD_INFO_X`, `CRD_INFO_Y`를 보존하고 `WGS84_LON`, `WGS84_LAT`를 추가합니다. 지도에 표시할 때는 WGS84 값을 사용합니다.
+localdata 인허가정보 좌표는 WGS84가 아니라 EPSG:5174입니다. `mois`는 원본 `CRD_INFO_X`, `CRD_INFO_Y`를 보존하고 `WGS84_LON`, `WGS84_LAT`를 추가합니다. 지도에 표시할 때는 WGS84 값을 사용합니다.
 
 ## 응답 필드가 문서와 다릅니다
 

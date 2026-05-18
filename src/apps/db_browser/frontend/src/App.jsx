@@ -88,10 +88,10 @@ export default function App() {
     }
   }
 
-  async function loadPlaces(nextOffset = offset) {
+  async function loadPlaces(nextOffset = offset, nextFilters = filters) {
     setLoading(true);
     try {
-      const query = buildQuery(filters, nextOffset);
+      const query = buildQuery(nextFilters, nextOffset);
       setPlaces(await fetchJson(`/api/places?${query}`));
       setError("");
     } catch (err) {
@@ -166,7 +166,8 @@ export default function App() {
               onSubmit={(event) => {
                 event.preventDefault();
                 setOffset(0);
-                loadPlaces(0);
+                setSelected(null);
+                loadPlaces(0, filters);
               }}
             >
               <label className="block text-sm">
@@ -250,16 +251,20 @@ export default function App() {
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="submit"
+                  disabled={loading}
                   className="inline-flex h-10 items-center justify-center gap-2 rounded bg-brand px-3 text-sm font-semibold text-white hover:bg-teal-800"
                 >
                   <Search size={16} aria-hidden="true" />
-                  검색
+                  {loading ? "조회 중" : "검색"}
                 </button>
                 <button
                   type="button"
                   onClick={() => {
-                    setFilters({ q: "", serviceSlug: "", category: "", isOpen: "" });
+                    const resetFilters = { q: "", serviceSlug: "", category: "", isOpen: "" };
+                    setFilters(resetFilters);
+                    setOffset(0);
                     setSelected(null);
+                    loadPlaces(0, resetFilters);
                   }}
                   className="inline-flex h-10 items-center justify-center gap-2 rounded border border-line bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 >

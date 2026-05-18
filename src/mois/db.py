@@ -367,13 +367,19 @@ class PlaceMaster(Base):
         UniqueConstraint("service_slug", "mng_no", name="uq_mois_place_master_source"),
         Index("ix_mois_place_master_status", "service_slug", "status_code"),
         Index("ix_mois_place_master_detail_status", "service_slug", "detail_status_code"),
+        Index("ix_mois_place_master_detail_status_lookup", "detail_status_code", "updated_at"),
         Index("ix_mois_place_master_data_update_type", "data_update_type"),
         Index("ix_mois_place_master_authority", "opn_authority_code"),
+        Index("ix_mois_place_master_category", "category"),
+        Index("ix_mois_place_master_category_open", "category", "is_open"),
+        Index("ix_mois_place_master_is_open", "is_open"),
         Index("ix_mois_place_master_legal_dong", "legal_dong_code"),
         Index("ix_mois_place_master_road_name", "road_name_code"),
         Index("ix_mois_place_master_lon_lat", "lon", "lat"),
         Index("ix_mois_place_master_subtype", "service_slug", "subtype_name"),
+        Index("ix_mois_place_master_business_type", "business_type_name"),
         Index("ix_mois_place_master_sales_method", "sales_method_name"),
+        Index("ix_mois_place_master_updated", "updated_at"),
     )
 
     place_id: Mapped[uuid.UUID] = mapped_column(
@@ -461,6 +467,52 @@ class PlaceDetail(Base):
     )
     specific_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     raw_data: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+    )
+
+
+class PlaceServiceSummary(Base):
+    """DB 브라우저 서비스 목록용 집계 캐시 테이블."""
+
+    __tablename__ = "mois_place_service_summary"
+
+    service_slug: Mapped[str] = mapped_column(String(120), primary_key=True)
+    category: Mapped[str | None] = mapped_column(String(80))
+    title: Mapped[str | None] = mapped_column(String(160))
+    domain_category: Mapped[str | None] = mapped_column(String(80))
+    total_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    open_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+    )
+
+
+class PlaceCategorySummary(Base):
+    """DB 브라우저 분류별 건수 집계 캐시 테이블."""
+
+    __tablename__ = "mois_place_category_summary"
+
+    category: Mapped[str] = mapped_column(String(80), primary_key=True)
+    total_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+    )
+
+
+class PlaceStatsSummary(Base):
+    """DB 브라우저 전체 통계 집계 캐시 테이블."""
+
+    __tablename__ = "mois_place_stats_summary"
+
+    key: Mapped[str] = mapped_column(String(80), primary_key=True)
+    value: Mapped[int] = mapped_column(Integer, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.current_timestamp(),
@@ -634,7 +686,9 @@ def create_sqlite_schema(engine: Engine, *, load_spatialite: bool = True) -> boo
             _set_sqlite_pragmas(connection)
         Base.metadata.create_all(connection)
         if engine.dialect.name == "sqlite":
+            _ensure_sqlite_performance_indexes(connection)
             _ensure_sqlite_json_indexes(connection)
+            _ensure_sqlite_search_table(connection)
             if load_spatialite:
                 spatialite_enabled = load_spatialite_extension(connection)
                 if spatialite_enabled:
@@ -728,6 +782,69 @@ def refresh_spatial_geometries(engine: Engine, *, batch_size: int = 100_000) -> 
                                {SPATIALITE_GEOMETRY_COLUMN} IS NULL
                                OR geom_wkt IS NOT NULL
                            )
+                        """
+                    ),
+                    {"start": start, "end": end},
+                )
+            start = end + 1
+
+
+def refresh_sqlite_derived_tables(engine: Engine, *, batch_size: int = 100_000) -> None:
+    """DB 브라우저용 집계 캐시와 FTS 검색 테이블을 재생성합니다."""
+
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
+
+    with engine.begin() as connection:
+        if engine.dialect.name == "sqlite":
+            _ensure_sqlite_search_table(connection)
+        _refresh_sqlite_summary_tables(connection)
+
+    with engine.connect() as connection:
+        if engine.dialect.name != "sqlite" or not _has_table(connection, "mois_place_search"):
+            return
+        row_bounds = connection.execute(
+            text(f"SELECT min(rowid), max(rowid) FROM {PlaceMaster.__tablename__}")
+        ).one()
+        connection.commit()
+        min_rowid = row_bounds[0]
+        max_rowid = row_bounds[1]
+        if min_rowid is None or max_rowid is None:
+            return
+
+        with connection.begin():
+            connection.execute(text("DELETE FROM mois_place_search"))
+
+        start = int(min_rowid)
+        max_rowid = int(max_rowid)
+        while start <= max_rowid:
+            end = start + batch_size - 1
+            with connection.begin():
+                connection.execute(
+                    text(
+                        f"""
+                        INSERT INTO mois_place_search(
+                            rowid,
+                            place_id,
+                            service_slug,
+                            place_name,
+                            road_address,
+                            lot_address,
+                            mng_no,
+                            business_type_name,
+                            subtype_name
+                        )
+                        SELECT rowid,
+                               place_id,
+                               service_slug,
+                               coalesce(place_name, ''),
+                               coalesce(road_address, ''),
+                               coalesce(lot_address, ''),
+                               coalesce(mng_no, ''),
+                               coalesce(business_type_name, ''),
+                               coalesce(subtype_name, '')
+                          FROM {PlaceMaster.__tablename__}
+                         WHERE rowid BETWEEN :start AND :end
                         """
                     ),
                     {"start": start, "end": end},
@@ -871,8 +988,220 @@ def _ensure_sqlite_json_indexes(connection: Connection) -> None:
         connection.execute(text(sql))
 
 
+def _ensure_sqlite_performance_indexes(connection: Connection) -> None:
+    for sql in (
+        """
+        CREATE INDEX IF NOT EXISTS ix_mois_place_master_status
+        ON mois_place_master(service_slug, status_code)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_mois_place_master_detail_status
+        ON mois_place_master(service_slug, detail_status_code)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_mois_place_master_detail_status_lookup
+        ON mois_place_master(detail_status_code, updated_at)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_mois_place_master_data_update_type
+        ON mois_place_master(data_update_type)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_mois_place_master_authority
+        ON mois_place_master(opn_authority_code)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_mois_place_master_category
+        ON mois_place_master(category)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_mois_place_master_category_open
+        ON mois_place_master(category, is_open)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_mois_place_master_is_open
+        ON mois_place_master(is_open)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_mois_place_master_legal_dong
+        ON mois_place_master(legal_dong_code)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_mois_place_master_road_name
+        ON mois_place_master(road_name_code)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_mois_place_master_lon_lat
+        ON mois_place_master(lon, lat)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_mois_place_master_subtype
+        ON mois_place_master(service_slug, subtype_name)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_mois_place_master_business_type
+        ON mois_place_master(business_type_name)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_mois_place_master_sales_method
+        ON mois_place_master(sales_method_name)
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_mois_place_master_updated
+        ON mois_place_master(updated_at)
+        """,
+    ):
+        connection.execute(text(sql))
+
+
+def _ensure_sqlite_search_table(connection: Connection) -> None:
+    connection.execute(
+        text(
+            """
+            CREATE VIRTUAL TABLE IF NOT EXISTS mois_place_search
+            USING fts5(
+                place_id UNINDEXED,
+                service_slug UNINDEXED,
+                place_name,
+                road_address,
+                lot_address,
+                mng_no,
+                business_type_name,
+                subtype_name,
+                tokenize='unicode61'
+            )
+            """
+        )
+    )
+    for sql in (
+        """
+        CREATE TRIGGER IF NOT EXISTS trg_mois_place_master_search_ai
+        AFTER INSERT ON mois_place_master
+        BEGIN
+            INSERT INTO mois_place_search(
+                rowid,
+                place_id,
+                service_slug,
+                place_name,
+                road_address,
+                lot_address,
+                mng_no,
+                business_type_name,
+                subtype_name
+            )
+            VALUES (
+                new.rowid,
+                new.place_id,
+                new.service_slug,
+                coalesce(new.place_name, ''),
+                coalesce(new.road_address, ''),
+                coalesce(new.lot_address, ''),
+                coalesce(new.mng_no, ''),
+                coalesce(new.business_type_name, ''),
+                coalesce(new.subtype_name, '')
+            );
+        END
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS trg_mois_place_master_search_ad
+        AFTER DELETE ON mois_place_master
+        BEGIN
+            DELETE FROM mois_place_search WHERE rowid = old.rowid;
+        END
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS trg_mois_place_master_search_au
+        AFTER UPDATE ON mois_place_master
+        BEGIN
+            DELETE FROM mois_place_search WHERE rowid = old.rowid;
+            INSERT INTO mois_place_search(
+                rowid,
+                place_id,
+                service_slug,
+                place_name,
+                road_address,
+                lot_address,
+                mng_no,
+                business_type_name,
+                subtype_name
+            )
+            VALUES (
+                new.rowid,
+                new.place_id,
+                new.service_slug,
+                coalesce(new.place_name, ''),
+                coalesce(new.road_address, ''),
+                coalesce(new.lot_address, ''),
+                coalesce(new.mng_no, ''),
+                coalesce(new.business_type_name, ''),
+                coalesce(new.subtype_name, '')
+            );
+        END
+        """,
+    ):
+        connection.execute(text(sql))
+
+
+def _refresh_sqlite_summary_tables(connection: Connection) -> None:
+    connection.execute(text(f"DELETE FROM {PlaceServiceSummary.__tablename__}"))
+    connection.execute(
+        text(
+            f"""
+            INSERT INTO {PlaceServiceSummary.__tablename__}(
+                service_slug,
+                category,
+                title,
+                domain_category,
+                total_count,
+                open_count
+            )
+            SELECT service_slug,
+                   category,
+                   title,
+                   domain_category,
+                   count(*),
+                   sum(CASE WHEN is_open = 1 THEN 1 ELSE 0 END)
+              FROM {PlaceMaster.__tablename__}
+             GROUP BY service_slug, category, title, domain_category
+            """
+        )
+    )
+    connection.execute(text(f"DELETE FROM {PlaceCategorySummary.__tablename__}"))
+    connection.execute(
+        text(
+            f"""
+            INSERT INTO {PlaceCategorySummary.__tablename__}(category, total_count)
+            SELECT coalesce(category, '미분류'), count(*)
+              FROM {PlaceMaster.__tablename__}
+             GROUP BY coalesce(category, '미분류')
+            """
+        )
+    )
+    connection.execute(text(f"DELETE FROM {PlaceStatsSummary.__tablename__}"))
+    connection.execute(
+        text(
+            f"""
+            INSERT INTO {PlaceStatsSummary.__tablename__}(key, value)
+            SELECT 'total', count(*) FROM {PlaceMaster.__tablename__}
+            UNION ALL
+            SELECT 'open', count(*) FROM {PlaceMaster.__tablename__} WHERE is_open = 1
+            UNION ALL
+            SELECT 'with_coordinates', count(*)
+              FROM {PlaceMaster.__tablename__}
+             WHERE lon IS NOT NULL AND lat IS NOT NULL
+            UNION ALL
+            SELECT 'service_count', count(distinct service_slug)
+              FROM {PlaceMaster.__tablename__}
+            """
+        )
+    )
+
+
 def _ensure_spatialite_geometry(connection: Connection) -> None:
     _add_geometry_column(connection, PlaceMaster.__tablename__, SPATIALITE_GEOMETRY_COLUMN)
+    spatial_index_table = f"idx_{PlaceMaster.__tablename__}_{SPATIALITE_GEOMETRY_COLUMN}"
+    if _has_table(connection, spatial_index_table):
+        return
     try:
         connection.execute(
             text(f"SELECT CreateSpatialIndex('{PlaceMaster.__tablename__}', 'geom')")

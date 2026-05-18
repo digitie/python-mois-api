@@ -16,6 +16,7 @@ from mois import (
     bulk_upsert_places,
     compact_json_dumps,
     create_sqlite_schema,
+    refresh_sqlite_derived_tables,
 )
 from mois.files import iter_records_from_binary
 
@@ -36,6 +37,7 @@ def load_download_file_to_sqlite(
     batch_size: int = 1000,
     replace_slug: bool = False,
     load_spatialite: bool = True,
+    refresh_derived: bool = True,
 ) -> int:
     """다운로드된 CSV/ZIP 파일 하나를 SQLite DB에 적재합니다."""
 
@@ -49,11 +51,14 @@ def load_download_file_to_sqlite(
         delete_slug(engine, slug)
 
     with Path(file_path).open("rb") as source, Session(engine) as session:
-        return load_records_to_sqlite(
+        count = load_records_to_sqlite(
             session,
             iter_records_from_binary(source, slug=slug),
             batch_size=batch_size,
         )
+    if refresh_derived:
+        refresh_sqlite_derived_tables(engine)
+    return count
 
 
 def load_records_to_sqlite(
@@ -117,6 +122,11 @@ def main() -> None:
         action="store_true",
         help="SpatiaLite 확장 로드를 건너뛰고 일반 SQLite 컬럼만 사용",
     )
+    parser.add_argument(
+        "--skip-refresh-derived",
+        action="store_true",
+        help="적재 후 DB 브라우저용 집계/검색 캐시 갱신을 생략",
+    )
     args = parser.parse_args()
 
     if not args.database_path:
@@ -129,6 +139,7 @@ def main() -> None:
         batch_size=args.batch_size,
         replace_slug=args.replace_slug,
         load_spatialite=not args.skip_spatialite,
+        refresh_derived=not args.skip_refresh_derived,
     )
     print(f"loaded={count} slug={args.slug} file={args.file}")
 

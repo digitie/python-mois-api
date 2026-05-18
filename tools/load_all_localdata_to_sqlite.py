@@ -31,6 +31,7 @@ from mois import (  # noqa: E402
     create_sqlite_schema,
     list_file_downloads,
     refresh_spatial_geometries,
+    refresh_sqlite_derived_tables,
 )
 from mois.files import iter_records_from_binary  # noqa: E402
 
@@ -83,6 +84,11 @@ def main() -> None:
         "--skip-refresh-geometry",
         action="store_true",
         help="전체 적재 후 SpatiaLite geometry 갱신을 생략",
+    )
+    parser.add_argument(
+        "--skip-refresh-derived",
+        action="store_true",
+        help="전체 적재 후 DB 브라우저용 집계/검색 캐시 갱신을 생략",
     )
     args = parser.parse_args()
 
@@ -162,6 +168,11 @@ def main() -> None:
         _write_progress(progress_path, "refresh_geometry_start")
         refresh_spatial_geometries(engine)
         _write_progress(progress_path, "refresh_geometry_complete")
+
+    if engine is not None and not args.skip_refresh_derived:
+        _write_progress(progress_path, "refresh_derived_start")
+        refresh_sqlite_derived_tables(engine)
+        _write_progress(progress_path, "refresh_derived_complete")
 
     _write_progress(
         progress_path,

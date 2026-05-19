@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import os
 import re
 import uuid
@@ -64,7 +66,7 @@ def create_app(
         return repo
 
     @app.get("/api/health")
-    def health() -> dict[str, Any]:
+    async def health() -> dict[str, Any]:
         configured = repo is not None
         return {
             "ok": True,
@@ -73,21 +75,22 @@ def create_app(
         }
 
     @app.get("/api/stats")
-    def stats() -> dict[str, Any]:
+    async def stats() -> dict[str, Any]:
         try:
-            return get_repository().stats()
+            return await _call_repository(get_repository, "stats")
         except DatabaseNotConfiguredError as exc:
             raise _db_not_configured() from exc
 
     @app.get("/api/services")
-    def services() -> dict[str, Any]:
+    async def services() -> dict[str, Any]:
         try:
-            return {"items": _with_service_application_urls(get_repository().services())}
+            items = await _call_repository(get_repository, "services")
+            return {"items": _with_service_application_urls(items)}
         except DatabaseNotConfiguredError as exc:
             raise _db_not_configured() from exc
 
     @app.get("/api/places")
-    def places(
+    async def places(
         q: Annotated[
             str | None,
             Query(description="사업장명, 주소, 관리번호 검색어"),
@@ -103,7 +106,9 @@ def create_app(
         offset: Annotated[int, Query(ge=0)] = 0,
     ) -> dict[str, Any]:
         try:
-            return get_repository().places(
+            return await _call_repository(
+                get_repository,
+                "places",
                 q=q,
                 service_slug=service_slug,
                 category=category,
@@ -119,9 +124,9 @@ def create_app(
             raise _db_not_configured() from exc
 
     @app.get("/api/places/{place_id}")
-    def place_detail(place_id: str) -> dict[str, Any]:
+    async def place_detail(place_id: str) -> dict[str, Any]:
         try:
-            detail = get_repository().place_detail(place_id)
+            detail = await _call_repository(get_repository, "place_detail", place_id)
         except DatabaseNotConfiguredError as exc:
             raise _db_not_configured() from exc
         if detail is None:
@@ -189,7 +194,7 @@ class SQLAlchemyPlaceRepository:
                 session,
                 select(func.count())
                 .select_from(PlaceMaster)
-                .where(PlaceMaster.lon.is_not(None), PlaceMaster.lat.is_not(None)),
+                .where(PlaceMaster.lat.is_not(None), PlaceMaster.lon.is_not(None)),
             )
             service_count = _scalar_int(
                 session,
@@ -463,6 +468,19 @@ def _repository_from_database_path(
     return SQLAlchemyPlaceRepository(engine, spatialite_enabled=spatialite_enabled)
 
 
+async def _call_repository(
+    repository_factory: Callable[[], Any],
+    method_name: str,
+    *args: Any,
+    **kwargs: Any,
+) -> Any:
+    repository = repository_factory()
+    method = getattr(repository, method_name)
+    if inspect.iscoroutinefunction(method):
+        return await method(*args, **kwargs)
+    return await asyncio.to_thread(method, *args, **kwargs)
+
+
 def _with_service_application_urls(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     catalog = {service.slug: service for service in list_openapi_services()}
     enriched: list[dict[str, Any]] = []
@@ -638,8 +656,8 @@ def _place_summary(place: PlaceMaster) -> dict[str, Any]:
         "buildingManagementNumber": place.building_management_number,
         "sourceX": place.source_x,
         "sourceY": place.source_y,
-        "lon": place.lon,
         "lat": place.lat,
+        "lon": place.lon,
         "dataUpdatedAt": _json_value(place.data_updated_at),
         "sourceModifiedAt": _json_value(place.source_modified_at),
         "updatedAt": _json_value(place.updated_at),
@@ -670,8 +688,8 @@ def _record_data(place: PlaceMaster, detail: PlaceDetail | None) -> dict[str, An
         "DAT_UPDT_PNT": _json_value(place.data_updated_at),
         "CRD_INFO_X": place.source_x,
         "CRD_INFO_Y": place.source_y,
-        "WGS84_LON": place.lon,
         "WGS84_LAT": place.lat,
+        "WGS84_LON": place.lon,
         "TCBIZ_BGNG_YMD": _json_value(place.temporary_business_start_date),
         "TCBIZ_END_YMD": _json_value(place.temporary_business_end_date),
         "ROBIZ_YMD": _json_value(place.reopen_date),

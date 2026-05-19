@@ -50,7 +50,7 @@ PDF는 인허가정보 195종과 생활편의정보 14종, 총 209종을 여행 
 | `sickbed_count`, `bed_count`, `healthcare_worker_count`, `hospital_room_count` | 의료·숙박 규모 |
 | `road_address`, `lot_address` | 도로명주소, 지번주소 |
 | `source_x`, `source_y` | 원본 EPSG:5174 좌표 |
-| `lon`, `lat`, `geom_wkt` | WGS84 좌표와 WKT |
+| `lat`, `lon`, `geom_wkt` | WGS84 좌표와 WKT |
 | `geom` | SpatiaLite가 활성화된 경우의 공간 컬럼 |
 
 ### `mois_place_detail`

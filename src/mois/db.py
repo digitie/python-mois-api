@@ -63,8 +63,8 @@ PROMOTED_DATA_FIELDS = frozenset(
         "DAT_UPDT_PNT",
         "CRD_INFO_X",
         "CRD_INFO_Y",
-        "WGS84_LON",
         "WGS84_LAT",
+        "WGS84_LON",
         "TCBIZ_BGNG_YMD",
         "TCBIZ_END_YMD",
         "ROBIZ_YMD",
@@ -280,8 +280,8 @@ class PlaceRecord(BaseModel):
             road_name_emd_no=_text(data, "ROAD_NM_EMD_NO"),
             source_x=coords.x if coords else None,
             source_y=coords.y if coords else None,
-            lon=coords.lon if coords else _float_value(data.get("WGS84_LON")),
             lat=coords.lat if coords else _float_value(data.get("WGS84_LAT")),
+            lon=coords.lon if coords else _float_value(data.get("WGS84_LON")),
             data_updated_at=record.updated_at,
             source_modified_at=record.modified_at,
             data=data,
@@ -318,11 +318,11 @@ class PlaceRecord(BaseModel):
 
     @property
     def wgs84_point(self) -> Wgs84Point | None:
-        """WGS84 `(lon, lat)` 좌표 값 객체."""
+        """WGS84 `(lat, lon)` 좌표 값 객체."""
 
-        if self.lon is None or self.lat is None:
+        if self.lat is None or self.lon is None:
             return None
-        return Wgs84Point(self.lon, self.lat)
+        return Wgs84Point(lat=self.lat, lon=self.lon)
 
     @property
     def station_coordinates(self) -> StationCoordinates | None:
@@ -375,7 +375,7 @@ class PlaceMaster(Base):
         Index("ix_mois_place_master_is_open", "is_open"),
         Index("ix_mois_place_master_legal_dong", "legal_dong_code"),
         Index("ix_mois_place_master_road_name", "road_name_code"),
-        Index("ix_mois_place_master_lon_lat", "lon", "lat"),
+        Index("ix_mois_place_master_lat_lon", "lat", "lon"),
         Index("ix_mois_place_master_subtype", "service_slug", "subtype_name"),
         Index("ix_mois_place_master_business_type", "business_type_name"),
         Index("ix_mois_place_master_sales_method", "sales_method_name"),
@@ -633,8 +633,8 @@ def place_master_values(
         "road_name_emd_no": place.road_name_emd_no,
         "source_x": place.source_x,
         "source_y": place.source_y,
-        "lon": place.lon,
         "lat": place.lat,
+        "lon": place.lon,
         "geom_wkt": place.point_wkt,
         "data_updated_at": place.data_updated_at,
         "source_modified_at": place.source_modified_at,
@@ -677,7 +677,7 @@ def create_sqlite_schema(engine: Engine, *, load_spatialite: bool = True) -> boo
     """SQLite 테이블과 선택적 SpatiaLite geometry 컬럼/공간 인덱스를 생성합니다.
 
     반환값은 현재 연결에서 SpatiaLite 확장을 사용할 수 있는지 여부입니다. 확장을
-    로드하지 못해도 `geom_wkt`, `lon`, `lat` 컬럼과 일반 인덱스는 그대로 동작합니다.
+    로드하지 못해도 `geom_wkt`, `lat`, `lon` 컬럼과 일반 인덱스는 그대로 동작합니다.
     """
 
     spatialite_enabled = False
@@ -733,7 +733,7 @@ def load_spatialite_extension(connection: Connection) -> bool:
 
 
 def refresh_spatial_geometries(engine: Engine, *, batch_size: int = 100_000) -> None:
-    """`lon`/`lat` 기준으로 SpatiaLite `geom` 컬럼을 배치 갱신합니다."""
+    """`lat`/`lon` 기준으로 SpatiaLite `geom` 컬럼을 배치 갱신합니다."""
 
     if batch_size <= 0:
         raise ValueError("batch_size must be positive")
@@ -749,8 +749,8 @@ def refresh_spatial_geometries(engine: Engine, *, batch_size: int = 100_000) -> 
                 f"""
                 SELECT min(rowid), max(rowid)
                   FROM {table_name}
-                 WHERE lon IS NOT NULL
-                   AND lat IS NOT NULL
+                 WHERE lat IS NOT NULL
+                   AND lon IS NOT NULL
                    AND (
                        {SPATIALITE_GEOMETRY_COLUMN} IS NULL
                        OR geom_wkt IS NOT NULL
@@ -774,10 +774,10 @@ def refresh_spatial_geometries(engine: Engine, *, batch_size: int = 100_000) -> 
                     text(
                         f"""
                         UPDATE {table_name}
-                           SET {SPATIALITE_GEOMETRY_COLUMN} = MakePoint(lon, lat, 4326)
+                           SET {SPATIALITE_GEOMETRY_COLUMN} = MakePoint(lon,lat, 4326)
                          WHERE rowid BETWEEN :start AND :end
-                           AND lon IS NOT NULL
                            AND lat IS NOT NULL
+                           AND lon IS NOT NULL
                            AND (
                                {SPATIALITE_GEOMETRY_COLUMN} IS NULL
                                OR geom_wkt IS NOT NULL
@@ -1031,8 +1031,8 @@ def _ensure_sqlite_performance_indexes(connection: Connection) -> None:
         ON mois_place_master(road_name_code)
         """,
         """
-        CREATE INDEX IF NOT EXISTS ix_mois_place_master_lon_lat
-        ON mois_place_master(lon, lat)
+        CREATE INDEX IF NOT EXISTS ix_mois_place_master_lat_lon
+        ON mois_place_master(lat, lon)
         """,
         """
         CREATE INDEX IF NOT EXISTS ix_mois_place_master_subtype
@@ -1188,7 +1188,7 @@ def _refresh_sqlite_summary_tables(connection: Connection) -> None:
             UNION ALL
             SELECT 'with_coordinates', count(*)
               FROM {PlaceMaster.__tablename__}
-             WHERE lon IS NOT NULL AND lat IS NOT NULL
+             WHERE lat IS NOT NULL AND lon IS NOT NULL
             UNION ALL
             SELECT 'service_count', count(distinct service_slug)
               FROM {PlaceMaster.__tablename__}

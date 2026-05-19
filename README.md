@@ -13,7 +13,7 @@
 - API, 파일 다운로드, 응답변수 목록을 코드에서 조회
 - localdata CSV 다운로드와 Python 객체 스트리밍 로드
 - CP949 CSV, 날짜/시각, 숫자, EPSG:5174 좌표 자동 변환
-- EPSG:5174 좌표를 WGS84 `(lon, lat)`로 변환하고 좌표 값 객체 제공
+- EPSG:5174 좌표를 WGS84 `(lat, lon)`로 변환하고 좌표 값 객체 제공
 - SQLite/SpatiaLite 기반 로컬 DB 적재 모델과 DB 브라우저 서버 제공
 - 디버그 fixture JSON을 외부 호출 없이 replay하는 pytest runner 구조 제공
 - 네트워크 없는 단위 테스트와 실제 호출용 live 테스트 분리
@@ -103,7 +103,7 @@ first = records[0]
 print(first.business_name)
 print(first.license_date)
 print(first.updated_at)
-print(first.coordinates.lon, first.coordinates.lat)
+print(first.coordinates.lat, first.coordinates.lon)
 ```
 
 대용량 업종은 전체 목록을 만들지 않는 스트리밍 API를 사용합니다.
@@ -124,6 +124,9 @@ from mois import LocalDataFileClient
 
 async def main():
     async with LocalDataFileClient.aio() as files:
+        local_records = await files.load_file("artifacts/localdata/hospitals_info.bin", slug="hospitals")
+        print(local_records[0].management_number)
+
         async for record in files.iter_hospitals():
             print(record.management_number, record.business_name)
             break
@@ -132,7 +135,7 @@ async def main():
 asyncio.run(main())
 ```
 
-CSV 원본의 `좌표정보(X)`, `좌표정보(Y)`는 EPSG:5174로 보존하고, `WGS84_LON`, `WGS84_LAT`와 `Coordinate` 객체를 추가합니다. 좌표 순서는 KATEC가 `(x, y)`, WGS84가 `(lon, lat)`입니다.
+CSV 원본의 `좌표정보(X)`, `좌표정보(Y)`는 EPSG:5174로 보존하고, `WGS84_LAT`, `WGS84_LON`과 `Coordinate` 객체를 추가합니다. 좌표 순서는 KATEC가 `(x, y)`, WGS84 일반 tuple이 `(lat, lon)`입니다.
 
 ## SQLite/SpatiaLite DB 적재
 

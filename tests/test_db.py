@@ -52,7 +52,7 @@ def test_place_record_extracts_db_and_linkage_fields() -> None:
     assert place.katec_point is not None
     assert place.wgs84_point is not None
     assert place.station_coordinates is not None
-    assert place.wgs84_point.as_tuple() == (place.lon, place.lat)
+    assert place.wgs84_point.as_tuple() == (place.lat, place.lon)
     assert isinstance(place.data_updated_at, datetime)
     assert place.detail_status_code is None
     assert place.data_update_type is None
@@ -129,7 +129,7 @@ def test_sqlite_master_table_ddl_contains_wkt_and_indexes() -> None:
     assert "mng_no" in ddl
 
     index_names = {index.name for index in PlaceMaster.__table__.indexes}
-    assert "ix_mois_place_master_lon_lat" in index_names
+    assert "ix_mois_place_master_lat_lon" in index_names
     assert "ix_mois_place_master_legal_dong" in index_names
     assert "ix_mois_place_master_road_name" in index_names
     assert "ix_mois_place_master_detail_status" in index_names

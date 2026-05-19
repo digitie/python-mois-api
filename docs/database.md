@@ -1,6 +1,6 @@
 # SQLite/SpatiaLite DB 적재
 
-`mois`는 localdata CSV 또는 OpenAPI 응답을 공통 검색용 마스터 테이블과 업종별 JSON 상세 테이블로 저장할 수 있는 SQLAlchemy 2 모델을 제공합니다. 좌표는 EPSG:5174 원본 `(x, y)`를 보존하고, WGS84 `(lon, lat)`와 WKT를 함께 저장합니다. SpatiaLite 확장을 로드할 수 있으면 `geom` 컬럼과 공간 인덱스를 추가로 사용합니다.
+`mois`는 localdata CSV 또는 OpenAPI 응답을 공통 검색용 마스터 테이블과 업종별 JSON 상세 테이블로 저장할 수 있는 SQLAlchemy 2 모델을 제공합니다. 좌표는 EPSG:5174 원본 `(x, y)`를 보존하고, WGS84 `(lat, lon)`와 WKT를 함께 저장합니다. SpatiaLite 확장을 로드할 수 있으면 `geom` 컬럼과 공간 인덱스를 추가로 사용합니다.
 
 ## 의존성과 환경
 
@@ -23,7 +23,7 @@ $env:PATH = "F:\dev\spatialite\bin;$env:PATH"
 $env:PROJ_LIB = "F:\dev\spatialite\bin"
 ```
 
-확장을 로드하지 못해도 `geom_wkt`, `lon`, `lat`와 일반 인덱스는 그대로 동작합니다.
+확장을 로드하지 못해도 `geom_wkt`, `lat`, `lon`과 일반 인덱스는 그대로 동작합니다.
 
 ## 테이블 구조
 
@@ -50,7 +50,7 @@ $env:PROJ_LIB = "F:\dev\spatialite\bin"
 | `sickbed_count`, `bed_count`, `healthcare_worker_count`, `hospital_room_count` | 의료·숙박 규모 필드 |
 | `legal_dong_code`, `road_name_code`, `building_management_number` | 외부 주소 데이터 보강용 코드 |
 | `source_x`, `source_y` | 원본 EPSG:5174 좌표 |
-| `lon`, `lat`, `geom_wkt` | WGS84 좌표와 WKT 포인트 |
+| `lat`, `lon`, `geom_wkt` | WGS84 좌표와 WKT 포인트 |
 | `geom` | SpatiaLite가 활성화된 경우 추가되는 WGS84 포인트 |
 | `data_updated_at`, `source_modified_at` | 데이터갱신시점, 최종수정시점 |
 
@@ -62,8 +62,8 @@ $env:PROJ_LIB = "F:\dev\spatialite\bin"
 create unique index uq_mois_place_master_source
     on mois_place_master (service_slug, mng_no);
 
-create index ix_mois_place_master_lon_lat
-    on mois_place_master (lon, lat);
+create index ix_mois_place_master_lat_lon
+    on mois_place_master (lat, lon);
 
 create index ix_mois_place_master_legal_dong
     on mois_place_master (legal_dong_code);
@@ -139,7 +139,7 @@ python -m tools.load_all_localdata_to_sqlite --output-dir artifacts/localdata --
 
 | 연계 대상 | 공식 자료 | mois 기준 필드 | 연계 방식 |
 |---|---|---|---|
-| 법정동코드 | 행정표준코드 계열 | `legal_dong_code`, `road_address`, `lot_address`, `lon/lat` | 원본 코드 우선, 없으면 주소 DB 또는 법정구역 공간조인 |
+| 법정동코드 | 행정표준코드 계열 | `legal_dong_code`, `road_address`, `lot_address`, `lat/lon` | 원본 코드 우선, 없으면 주소 DB 또는 법정구역 공간조인 |
 | 도로명코드 | 도로명주소 개발자센터 | `road_name_code`, `road_address`, `road_zip` | 도로명주소 검색 결과로 보강 |
 | 건물관리번호 | 도로명주소 개발자센터 | `building_management_number`, `road_address`, `lot_address` | 주소 기반 보강, 동일 건물 내 여러 사업장은 사업장명 보조 |
 | 개방자치단체/기관 코드 | 행정표준코드 계열 | `opn_authority_code` | 개방자치단체 단위 집계와 담당 기관 분석 |

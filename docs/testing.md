@@ -21,7 +21,7 @@ python -m mypy src/mois
 - httpx 기반 동기/asyncio 클라이언트와 `MoisClient.aio()`, `LocalDataFileClient.aio()` 흐름
 - 디버그 UI fixture replay: `tests/fixtures/**/*.json`을 공통 runner로 읽어 파싱/가공 결과 비교
 - localdata CSV 로드: CP949, 날짜, KST 시각, 숫자, 좌표 변환
-- 좌표 값 객체: `KatecPoint(x, y)`, `Wgs84Point(lon, lat)`, `StationCoordinates` 호환 별칭
+- 좌표 값 객체: `KatecPoint(x, y)`, `Wgs84Point(lat, lon)`, `StationCoordinates` 호환 별칭
 - 동적 편의 함수: `get_hospitals()`, `get_updated_hospitals()`, `load_hospitals()` 계열
 - DB 적재 모델: Pydantic 변환, SQLAlchemy 2 메타데이터, SQLite JSON 상세 데이터, WKT 좌표 저장
 - 전체 인허가 다운로드/DB 준비 경로: 195개 파일 다운로드 카탈로그 전체를 가짜 transport로 다운로드, 파싱, `PlaceRecord`, ORM 객체까지 생성

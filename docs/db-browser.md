@@ -9,7 +9,7 @@
 | `apps/db_browser/backend` | FastAPI API 서버 |
 | `apps/db_browser/frontend` | Vite + React + Tailwind CSS 프론트엔드 |
 
-백엔드는 `mois_place_master`, `mois_place_detail` 테이블을 읽습니다. DB 파일 경로는 `MOIS_SQLITE_PATH` 환경변수로 전달합니다.
+백엔드는 `mois_place_master`, `mois_place_detail` 테이블을 읽습니다. DB 파일 경로는 `MOIS_SQLITE_PATH` 환경변수로 전달합니다. FastAPI 라우트는 asyncio 기반이며, 동기 SQLite 조회는 작업 스레드로 넘겨 이벤트 루프를 막지 않습니다.
 
 ## Windows SpatiaLite 준비
 
@@ -20,7 +20,7 @@ $env:PATH = "F:\dev\spatialite\bin;$env:PATH"
 $env:PROJ_LIB = "F:\dev\spatialite\bin"
 ```
 
-확장을 로드할 수 없는 환경에서도 `lon`, `lat`, `geom_wkt`와 일반 인덱스로 조회 서버는 동작합니다. `/api/health`의 `spatialiteEnabled` 값으로 현재 상태를 확인합니다.
+확장을 로드할 수 없는 환경에서도 `lat`, `lon`, `geom_wkt`와 일반 인덱스로 조회 서버는 동작합니다. `/api/health`의 `spatialiteEnabled` 값으로 현재 상태를 확인합니다.
 
 ## 원본 다운로드 파일 보관
 
@@ -32,11 +32,24 @@ artifacts/localdata/hospitals_info.bin
 
 ## 다운로드 파일 적재
 
-이미 내려받은 localdata CSV/ZIP 파일은 `apps.db_browser.backend.load_sqlite` CLI로 적재합니다. 파일은 CP949 CSV 또는 ZIP을 모두 처리하며, 좌표는 기존 `mois` 로더를 거쳐 WGS84 `(lon, lat)`와 WKT로 저장합니다.
+이미 내려받은 localdata CSV/ZIP 파일은 `apps.db_browser.backend.load_sqlite` CLI로 적재합니다. 파일은 CP949 CSV 또는 ZIP을 모두 처리하며, 좌표는 기존 `mois` 로더를 거쳐 WGS84 `(lat, lon)`와 WKT로 저장합니다.
 
 ```powershell
 $env:MOIS_SQLITE_PATH = "F:\dev\pykrmois\artifacts\mois.sqlite"
 python -m apps.db_browser.backend.load_sqlite --file artifacts/localdata/hospitals_info.bin --slug hospitals --replace-slug
+```
+
+asyncio 흐름에서는 같은 로컬 파일 적재를 `aload_local_file_to_sqlite()`로 실행할 수 있습니다.
+
+```python
+from apps.db_browser.backend.load_sqlite import aload_local_file_to_sqlite
+
+loaded = await aload_local_file_to_sqlite(
+    database_path="artifacts/mois.sqlite",
+    file_path="artifacts/localdata/hospitals_info.bin",
+    slug="hospitals",
+    replace_slug=True,
+)
 ```
 
 전체 195개 인허가 파일을 모두 저장하고 적재할 때는 운영 스크립트를 사용합니다.
@@ -120,7 +133,7 @@ python -m apps.db_browser.backend
 
 - 전체 적재 건수, 영업 중 건수, 좌표 보유 건수, 업종 수
 - 분류/업종/영업 상태/검색어 필터
-- 사업장명, 관리번호, 주소, WGS84 좌표 `(lon, lat)`, 수정일
+- 사업장명, 관리번호, 주소, WGS84 좌표 `(lat, lon)`, 수정일
 - 레코드별 `specific_data`, 재구성된 `recordData`, 비승격 원본 필드 `rawData`
 
 ## 주의

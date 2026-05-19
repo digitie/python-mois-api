@@ -122,3 +122,20 @@ def test_async_file_client_downloads_then_loads_with_browser_flow() -> None:
     assert transport.urls[1].endswith("/file/validate/download-count")
     assert transport.urls[2].endswith("/file/download/hospitals/info")
     assert transport.kwargs[2]["stream"] is True
+
+
+def test_async_file_client_loads_existing_local_file(tmp_path: Any) -> None:
+    path = tmp_path / "hospitals.csv"
+    path.write_bytes(CSV_TEXT.encode("cp949"))
+
+    async def run() -> None:
+        async with LocalDataFileClient.aio(transport=FakeAsyncFileTransport()) as files:
+            records = await files.load_file(path, slug="hospitals")
+            assert records[0].management_number == "PHMA1"
+
+            streamed = []
+            async for record in files.iter_file(path, slug="hospitals"):
+                streamed.append(record)
+            assert streamed[0].business_name == "포레스트병원"
+
+    asyncio.run(run())

@@ -195,7 +195,7 @@ class KatecPoint:
         return self.x, self.y
 
     def to_wgs84(self) -> Wgs84Point:
-        """WGS84 `(lon, lat)` 좌표로 변환합니다."""
+        """WGS84 `(lat, lon)` 좌표로 변환합니다."""
 
         from .coords import katec_to_wgs84_point
 
@@ -204,24 +204,24 @@ class KatecPoint:
 
 @dataclass(frozen=True, slots=True)
 class Wgs84Point:
-    """WGS84 경도/위도 좌표.
+    """WGS84 위도/경도 좌표.
 
-    축 순서는 항상 `(lon, lat)`입니다. EPSG:4326을 사용합니다.
+    일반 tuple 축 순서는 항상 `(lat, lon)`입니다. EPSG:4326을 사용합니다.
     """
 
-    lon: float
     lat: float
+    lon: float
     crs: CoordinateReferenceSystem = CoordinateReferenceSystem.WGS84
 
     def __post_init__(self) -> None:
-        lon = float(self.lon)
         lat = float(self.lat)
-        if not -180 <= lon <= 180:
-            raise ValueError("lon must be between -180 and 180")
+        lon = float(self.lon)
         if not -90 <= lat <= 90:
             raise ValueError("lat must be between -90 and 90")
-        object.__setattr__(self, "lon", lon)
+        if not -180 <= lon <= 180:
+            raise ValueError("lon must be between -180 and 180")
         object.__setattr__(self, "lat", lat)
+        object.__setattr__(self, "lon", lon)
         object.__setattr__(self, "crs", CoordinateReferenceSystem(str(self.crs)))
 
     @property
@@ -237,9 +237,9 @@ class Wgs84Point:
         return self.lat
 
     def as_tuple(self) -> tuple[float, float]:
-        """`(lon, lat)` 순서로 반환합니다."""
+        """`(lat, lon)` 순서로 반환합니다."""
 
-        return self.lon, self.lat
+        return self.lat, self.lon
 
     def to_wkt(self) -> str:
         """공간 DB 등에 사용할 WKT Point 문자열을 반환합니다."""
@@ -247,17 +247,17 @@ class Wgs84Point:
         return f"POINT({self.lon} {self.lat})"
 
     def to_geojson_position(self) -> tuple[float, float]:
-        """GeoJSON Position 규칙에 맞춰 `(lon, lat)` 순서로 반환합니다."""
+        """GeoJSON Position 규칙에 맞춰 경도, 위도 순서로 반환합니다."""
 
-        return self.as_tuple()
+        return self.longitude, self.latitude
 
 
 @dataclass(frozen=True, slots=True, init=False)
 class StationCoordinates:
     """원본 KATEC 좌표와 WGS84 좌표를 함께 담는 좌표 값 객체.
 
-    생성자는 `StationCoordinates(katec_x, katec_y, lon, lat)` 형태를 지원합니다.
-    기존 `station.katec_x`, `station.katec_y`, `station.lon`, `station.lat`
+    생성자는 `StationCoordinates(katec_x, katec_y, lat, lon)` 형태를 지원합니다.
+    기존 `station.katec_x`, `station.katec_y`, `station.lat`, `station.lon`
     스타일 접근을 유지하면서 `katec_point`, `wgs84_point` 값 객체도 제공합니다.
     """
 
@@ -268,11 +268,11 @@ class StationCoordinates:
         self,
         katec_x: float,
         katec_y: float,
-        lon: float,
         lat: float,
+        lon: float,
     ) -> None:
         object.__setattr__(self, "katec_point", KatecPoint(katec_x, katec_y))
-        object.__setattr__(self, "wgs84_point", Wgs84Point(lon, lat))
+        object.__setattr__(self, "wgs84_point", Wgs84Point(lat=lat, lon=lon))
 
     @classmethod
     def from_points(
@@ -282,7 +282,7 @@ class StationCoordinates:
     ) -> StationCoordinates:
         """이미 만든 좌표 값 객체에서 복합 좌표를 생성합니다."""
 
-        return cls(katec_point.x, katec_point.y, wgs84_point.lon, wgs84_point.lat)
+        return cls(katec_point.x, katec_point.y, wgs84_point.lat, wgs84_point.lon)
 
     @classmethod
     def from_katec(cls, katec_x: float, katec_y: float) -> StationCoordinates:
@@ -337,7 +337,7 @@ class StationCoordinates:
 class Coordinate:
     """원본 EPSG:5174 좌표와 WGS84 좌표.
 
-    기존 호환성을 위해 `x`, `y`, `lon`, `lat` 필드를 유지합니다.
+    기존 호환성을 위해 `x`, `y`, `lat`, `lon` 필드를 유지합니다.
     새 코드에서는 `katec_point`, `wgs84_point`, `station_coordinates` 값 객체를
     함께 사용하는 것을 권장합니다.
     """
@@ -352,7 +352,7 @@ class Coordinate:
     def __post_init__(self) -> None:
         object.__setattr__(self, "x", float(self.x))
         object.__setattr__(self, "y", float(self.y))
-        wgs84 = Wgs84Point(self.lon, self.lat)
+        wgs84 = Wgs84Point(lat=self.lat, lon=self.lon)
         object.__setattr__(self, "lon", wgs84.lon)
         object.__setattr__(self, "lat", wgs84.lat)
         object.__setattr__(
@@ -368,16 +368,26 @@ class Coordinate:
 
     @classmethod
     def from_katec(cls, x: float, y: float) -> Coordinate:
-        """KATEC `(x, y)` 좌표를 WGS84 `(lon, lat)`까지 변환해 생성합니다."""
+        """KATEC `(x, y)` 좌표를 WGS84 `(lat, lon)`까지 변환해 생성합니다."""
 
         station = StationCoordinates.from_katec(x, y)
-        return cls(station.katec_x, station.katec_y, station.lon, station.lat)
+        return cls(
+            x=station.katec_x,
+            y=station.katec_y,
+            lon=station.lon,
+            lat=station.lat,
+        )
 
     @classmethod
     def from_points(cls, katec_point: KatecPoint, wgs84_point: Wgs84Point) -> Coordinate:
         """좌표 값 객체에서 기존 `Coordinate` 객체를 생성합니다."""
 
-        return cls(katec_point.x, katec_point.y, wgs84_point.lon, wgs84_point.lat)
+        return cls(
+            x=katec_point.x,
+            y=katec_point.y,
+            lon=wgs84_point.lon,
+            lat=wgs84_point.lat,
+        )
 
     @property
     def katec_x(self) -> float:
@@ -399,9 +409,9 @@ class Coordinate:
 
     @property
     def wgs84_point(self) -> Wgs84Point:
-        """WGS84 `(lon, lat)` 값 객체."""
+        """WGS84 `(lat, lon)` 값 객체."""
 
-        return Wgs84Point(self.lon, self.lat)
+        return Wgs84Point(lat=self.lat, lon=self.lon)
 
     @property
     def station_coordinates(self) -> StationCoordinates:

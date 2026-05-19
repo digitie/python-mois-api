@@ -792,8 +792,8 @@ def write_file_downloads(root: Path) -> None:
     lines.append("first = records[0]")
     lines.append("print(first.business_name)")
     lines.append("print(first.license_date)")
-    lines.append("print(first.coordinates.lon, first.coordinates.lat)")
-    lines.append("print(first.coordinates.wgs84_point.as_tuple())  # (lon, lat)")
+    lines.append("print(first.coordinates.lat, first.coordinates.lon)")
+    lines.append("print(first.coordinates.wgs84_point.as_tuple())  # (lat, lon)")
     lines.append("```")
     lines.append("")
     lines.append(
@@ -819,7 +819,20 @@ def write_file_downloads(root: Path) -> None:
     lines.append('        records = await files.load("hospitals")')
     lines.append("        print(records[0].business_name)")
     lines.append("")
+    lines.append(
+        "        local_records = await files.load_file("
+        '"artifacts/localdata/hospitals_info.bin", slug="hospitals")'
+    )
+    lines.append("        print(local_records[0].management_number)")
+    lines.append("")
     lines.append("        async for record in files.iter_hospitals():")
+    lines.append("            print(record.management_number, record.business_name)")
+    lines.append("            break")
+    lines.append("")
+    lines.append(
+        "        async for record in files.iter_file("
+        '"artifacts/localdata/hospitals_info.bin", slug="hospitals"):'
+    )
     lines.append("            print(record.management_number, record.business_name)")
     lines.append("            break")
     lines.append("")
@@ -848,12 +861,12 @@ def write_file_downloads(root: Path) -> None:
     lines.append("| `NUMBER` 필드와 면적/수량 계열 | `int` 또는 `float` |")
     lines.append(
         "| `좌표정보(X/Y)` | 원본 `CRD_INFO_X/Y` float + "
-        "`WGS84_LON/LAT` + `Coordinate`, `KatecPoint`, `Wgs84Point` 값 객체 |"
+        "`WGS84_LAT/LON` + `Coordinate`, `KatecPoint`, `Wgs84Point` 값 객체 |"
     )
     lines.append("| 빈 문자열/공백 | `None` |")
     lines.append("")
     lines.append(
-        "좌표 순서는 KATEC/EPSG:5174가 `(x, y)`, WGS84/EPSG:4326이 `(lon, lat)`입니다. "
+        "좌표 순서는 KATEC/EPSG:5174가 `(x, y)`, WGS84/EPSG:4326 일반 tuple이 `(lat, lon)`입니다. "
         "자세한 타입은 [타입과 좌표 값 객체](types-and-coordinates.md)를 봅니다."
     )
     lines.append("")
@@ -918,7 +931,7 @@ def write_tourism_license_data(root: Path) -> None:
     lines.append("## 요약")
     lines.append("")
     lines.append(f"- 선별 업종: {len(TOURISM_LICENSE_SELECTION)}개")
-    lines.append("- 좌표가 있는 행은 로더에서 WGS84 `(lon, lat)` 좌표로 함께 변환됩니다.")
+    lines.append("- 좌표가 있는 행은 로더에서 WGS84 `(lat, lon)` 좌표로 함께 변환됩니다.")
     lines.append("- 기본 적재와 분석은 `files.iter_<slug>()` 스트리밍 함수를 권장합니다.")
     lines.append("")
     lines.append("| 묶음 | 업종 수 |")

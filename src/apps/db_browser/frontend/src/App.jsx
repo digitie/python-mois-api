@@ -353,8 +353,8 @@ export default function App() {
                       <div className="truncate">{place.roadAddress || place.lotAddress || "-"}</div>
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-600">
-                      {place.lon != null && place.lat != null
-                        ? `${place.lon.toFixed(6)}, ${place.lat.toFixed(6)}`
+                      {place.lat != null && place.lon != null
+                        ? `${place.lat.toFixed(6)}, ${place.lon.toFixed(6)}`
                         : "-"}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{formatDate(place.sourceModifiedAt)}</td>
@@ -424,8 +424,8 @@ function DetailPanel({ place, loading, onClose }) {
   }
 
   const point =
-    place.lon != null && place.lat != null
-      ? `${place.lon.toFixed(7)}, ${place.lat.toFixed(7)}`
+    place.lat != null && place.lon != null
+      ? `${place.lat.toFixed(7)}, ${place.lon.toFixed(7)}`
       : "좌표 없음";
 
   return (

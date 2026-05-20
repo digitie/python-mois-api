@@ -2,6 +2,8 @@
 
 `mois`는 localdata CSV 또는 OpenAPI 응답을 공통 검색용 마스터 테이블과 업종별 JSON 상세 테이블로 저장할 수 있는 SQLAlchemy 2 모델을 제공합니다. 좌표는 EPSG:5174 원본 `(x, y)`를 보존하고, WGS84 `(lat, lon)`와 WKT를 함께 저장합니다. SpatiaLite 확장을 로드할 수 있으면 `geom` 컬럼과 공간 인덱스를 추가로 사용합니다.
 
+DB 브라우저의 조회 API는 `sqlite+aiosqlite` 기반 SQLAlchemy 2 async 세션을 사용합니다. 파일 적재와 파생 테이블 갱신은 배치 처리라 동기 SQLAlchemy 경로를 유지합니다. GeoAlchemy2, GeoPandas, Shapely는 현재 SQLite 런타임 의존성이 아니며, 필요할 때는 별도 공간 분석 단계에서 검토합니다.
+
 ## 의존성과 환경
 
 기본 설치에 DB 적재에 필요한 패키지가 포함됩니다.

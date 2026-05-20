@@ -168,12 +168,12 @@ python -m tools.load_all_localdata_to_sqlite --output-dir artifacts/localdata --
 
 ```powershell
 $env:MOIS_SQLITE_PATH = "F:\dev\pykrmois\artifacts\mois.sqlite"
-$env:MOIS_WEB_PORT = "8000"
+$env:MOIS_WEB_PORT = "8611"
 $env:PYTHONPATH = "src"
 python -m apps.db_browser.backend
 ```
 
-기본 API는 `http://127.0.0.1:8000/api`입니다. 프론트엔드는 `apps/db_browser/frontend`의 Vite 앱입니다.
+기본 API는 `http://127.0.0.1:8611/api`입니다. 프론트엔드는 `apps/db_browser/frontend`의 Vite 앱이며 개발 URL은 `http://localhost:8610`입니다.
 
 ## 문서 목록
 

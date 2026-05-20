@@ -11,10 +11,13 @@ import {
   TableProperties,
   X
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+const KAKAO_MAP_APP_KEY =
+  import.meta.env.VITE_KAKAO_MAP_APP_KEY || "b93b82c48729c08c24c943911a8727f9";
 const PAGE_SIZE = 50;
+let kakaoMapsPromise;
 
 async function fetchJson(path) {
   const response = await fetch(`${API_BASE}${path}`);
@@ -23,6 +26,53 @@ async function fetchJson(path) {
     throw new Error(payload.detail || `HTTP ${response.status}`);
   }
   return payload;
+}
+
+function loadKakaoMaps() {
+  if (!KAKAO_MAP_APP_KEY) {
+    return Promise.reject(new Error("Kakao 지도 앱 키가 설정되지 않았습니다"));
+  }
+  if (window.kakao?.maps) {
+    return new Promise((resolve) => {
+      window.kakao.maps.load(() => resolve(window.kakao.maps));
+    });
+  }
+  if (!kakaoMapsPromise) {
+    kakaoMapsPromise = new Promise((resolve, reject) => {
+      const existingScript = document.querySelector("script[data-kakao-map-sdk]");
+      const onLoad = () => {
+        if (!window.kakao?.maps) {
+          reject(new Error("Kakao 지도 SDK 초기화에 실패했습니다"));
+          return;
+        }
+        window.kakao.maps.load(() => resolve(window.kakao.maps));
+      };
+      if (existingScript) {
+        existingScript.addEventListener("load", onLoad, { once: true });
+        existingScript.addEventListener(
+          "error",
+          () => reject(new Error("Kakao 지도 SDK를 불러오지 못했습니다")),
+          { once: true }
+        );
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.dataset.kakaoMapSdk = "true";
+      script.async = true;
+      script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(
+        KAKAO_MAP_APP_KEY
+      )}&autoload=false`;
+      script.addEventListener("load", onLoad, { once: true });
+      script.addEventListener(
+        "error",
+        () => reject(new Error("Kakao 지도 SDK를 불러오지 못했습니다")),
+        { once: true }
+      );
+      document.head.appendChild(script);
+    });
+  }
+  return kakaoMapsPromise;
 }
 
 function formatNumber(value) {
@@ -412,6 +462,79 @@ function Stat({ label, value }) {
   );
 }
 
+function KakaoLocationMap({ place }) {
+  const mapRef = useRef(null);
+  const markerRef = useRef(null);
+  const containerRef = useRef(null);
+  const [mapState, setMapState] = useState({ status: "idle", message: "" });
+  const hasPoint = place?.lat != null && place?.lon != null;
+
+  useEffect(() => {
+    if (!hasPoint || !containerRef.current) {
+      setMapState({ status: "idle", message: "" });
+      return undefined;
+    }
+
+    let cancelled = false;
+    setMapState({ status: "loading", message: "" });
+
+    loadKakaoMaps()
+      .then((maps) => {
+        if (cancelled || !containerRef.current) return;
+        const center = new maps.LatLng(place.lat, place.lon);
+        if (!mapRef.current) {
+          mapRef.current = new maps.Map(containerRef.current, {
+            center,
+            level: 3
+          });
+        } else {
+          mapRef.current.setCenter(center);
+        }
+        if (!markerRef.current) {
+          markerRef.current = new maps.Marker({
+            map: mapRef.current,
+            position: center,
+            title: place.placeName || "선택 위치"
+          });
+        } else {
+          markerRef.current.setPosition(center);
+          markerRef.current.setMap(mapRef.current);
+        }
+        maps.event.trigger(mapRef.current, "resize");
+        mapRef.current.setCenter(center);
+        setMapState({ status: "ready", message: "" });
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setMapState({ status: "error", message: error.message });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPoint, place?.lat, place?.lon, place?.placeName]);
+
+  if (!hasPoint) {
+    return (
+      <div className="flex h-56 items-center justify-center rounded border border-dashed border-line bg-panel text-sm text-slate-500">
+        지도 표시 좌표 없음
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative overflow-hidden rounded border border-line bg-slate-100">
+      <div ref={containerRef} className="h-64 w-full" aria-label="선택 인허가 위치 지도" />
+      {mapState.status !== "ready" ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/80 px-4 text-center text-sm text-slate-600">
+          {mapState.status === "error" ? mapState.message : "지도 로딩 중"}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function DetailPanel({ place, loading, onClose }) {
   if (!place) {
     return (
@@ -459,7 +582,8 @@ function DetailPanel({ place, loading, onClose }) {
             <MapPin size={16} className="text-brand" aria-hidden="true" />
             위치
           </h3>
-          <div className="space-y-2 rounded border border-line bg-panel p-3 text-sm">
+          <div className="space-y-3 rounded border border-line bg-panel p-3 text-sm">
+            <KakaoLocationMap place={place} />
             <div>{place.roadAddress || "-"}</div>
             <div className="text-slate-500">{place.lotAddress || "-"}</div>
             <div className="font-mono text-xs text-slate-600">{point}</div>

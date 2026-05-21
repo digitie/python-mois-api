@@ -66,6 +66,27 @@ def test_request_builds_condition_params_and_parses_json() -> None:
     assert kwargs["params"]["cond[SALS_STTS_CD::EQ]"] == "01"
 
 
+def test_from_env_uses_data_go_kr_service_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DATA_GO_KR_SERVICE_KEY", "KEY")
+
+    client = MoisClient.from_env(session=FakeSession(FakeResponse()))
+
+    assert client.service_key == "KEY"
+
+
+def test_client_does_not_fallback_to_old_mois_service_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DATA_GO_KR_SERVICE_KEY", raising=False)
+    monkeypatch.setenv("MOIS" + "_SERVICE_KEY", "OLD_KEY")
+
+    with pytest.raises(ValueError, match="service_key is required"):
+        MoisClient(session=FakeSession(FakeResponse()))
+
+    with pytest.raises(ValueError, match="DATA_GO_KR_SERVICE_KEY is not set"):
+        MoisClient.from_env(session=FakeSession(FakeResponse()))
+
+
 def test_request_accepts_condition_objects_and_history_kind() -> None:
     payload = {"response": {"header": {"resultCode": "00"}, "body": {"items": {"item": []}}}}
     session = FakeSession(

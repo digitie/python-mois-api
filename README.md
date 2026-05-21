@@ -84,7 +84,7 @@ with MoisClient.from_env() as client:
 환경변수도 사용할 수 있습니다.
 
 ```bash
-export MOIS_SERVICE_KEY="공공데이터포털_서비스키"
+export DATA_GO_KR_SERVICE_KEY="공공데이터포털_서비스키"
 ```
 
 ```python
@@ -200,7 +200,7 @@ python -m ruff check .
 python -m mypy src/mois
 ```
 
-기본 테스트는 실제 API를 호출하지 않습니다. 실제 호출 테스트를 추가할 때는 `@pytest.mark.live`를 붙이고 `MOIS_SERVICE_KEY`가 있을 때만 실행되게 합니다.
+기본 테스트는 실제 API를 호출하지 않습니다. 실제 호출 테스트를 추가할 때는 `@pytest.mark.live`를 붙이고 `DATA_GO_KR_SERVICE_KEY`가 있을 때만 실행되게 합니다.
 
 ## 참고 출처
 

@@ -12,7 +12,7 @@
 - TripMate나 `python-krtour-map`에서 필요한 endpoint, pagination, cursor, exception, raw payload 계약이 부족하면 이 저장소의 public API를 먼저 안정화합니다.
 - 검증된 다른 라이브러리의 구현이 더 적합하면 wrapper로 감싸지 말고 라이선스와 출처를 확인한 뒤 프로젝트 코드에 직접 반영합니다.
 - 기본 테스트는 네트워크를 사용하지 않습니다.
-- live 테스트는 `MOIS_SERVICE_KEY`가 있을 때만 실행되게 분리합니다.
+- live 테스트는 `DATA_GO_KR_SERVICE_KEY`가 있을 때만 실행되게 분리합니다.
 - 인허가정보 CSV는 CP949, 좌표계는 EPSG:5174라는 전제를 잊지 않습니다.
 
 ## 변경 전 확인

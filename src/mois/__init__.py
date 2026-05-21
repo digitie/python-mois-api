@@ -54,6 +54,13 @@ from .files import (
     load_records_from_text,
 )
 from .fixtures import save_debug_fixture, save_fixture, slugify
+from .geocoding import (
+    AddressGeocoder,
+    AddressGeocodingProbe,
+    AddressGeocodingValidationResult,
+    GeocodingCandidate,
+    validate_address_geocoding_probe,
+)
 from .models import (
     BusinessStatusCategory,
     Condition,
@@ -87,6 +94,9 @@ __all__ = [
     "PROVIDER_NAME",
     "AsyncLocalDataFileClient",
     "AsyncMoisClient",
+    "AddressGeocoder",
+    "AddressGeocodingProbe",
+    "AddressGeocodingValidationResult",
     "BusinessStatusCategory",
     "Condition",
     "ConditionOperator",
@@ -95,6 +105,7 @@ __all__ = [
     "DebugRun",
     "FileDownload",
     "FileDownloadKind",
+    "GeocodingCandidate",
     "IncrementalOpenApiEndpoint",
     "KatecPoint",
     "LocalDataRow",
@@ -160,4 +171,5 @@ __all__ = [
     "slugify",
     "upsert_place",
     "upsert_places",
+    "validate_address_geocoding_probe",
 ]

@@ -17,12 +17,14 @@ from sqlalchemy.orm import Session
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "packages" / "mois-debug-ui" / "src"))
 
-from apps.db_browser.backend.load_sqlite import (  # noqa: E402
+from mois_debug_ui.backend.load_sqlite import (  # noqa: E402
     delete_slug,
     load_records_to_sqlite,
     sqlite_url,
 )
+
 from mois import (  # noqa: E402
     FileDownload,
     LocalDataFileClient,

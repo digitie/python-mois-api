@@ -15,7 +15,8 @@ pip install python-mois-api
 개발 저장소에서는 다음처럼 설치합니다.
 
 ```bash
-pip install -e ".[dev,web]"
+pip install -e ".[dev]"
+pip install -e packages/mois-debug-ui
 ```
 
 Windows에서 SpatiaLite를 사용할 때는 `mod_spatialite.dll`과 의존 DLL이 있는 폴더를 PATH에 추가합니다. 이 저장소의 로컬 검증 환경은 다음 경로를 사용합니다.

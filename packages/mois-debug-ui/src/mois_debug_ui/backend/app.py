@@ -9,20 +9,11 @@ import uuid
 from collections.abc import Callable
 from datetime import date, datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import case, create_engine, func, or_, select, text
-from sqlalchemy.engine import Engine
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
-
 from mois import (
     PlaceCategorySummary,
     PlaceDetail,
@@ -33,6 +24,14 @@ from mois import (
     create_sqlite_schema,
     list_file_downloads,
     list_openapi_services,
+)
+from sqlalchemy import case, create_engine, func, or_, select, text
+from sqlalchemy.engine import Engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
 )
 
 DEFAULT_LIMIT = 50
@@ -81,7 +80,7 @@ def create_app(
     @app.get("/api/stats")
     async def stats() -> dict[str, Any]:
         try:
-            return await _call_repository(get_repository, "stats")
+            return cast(dict[str, Any], await _call_repository(get_repository, "stats"))
         except DatabaseNotConfiguredError as exc:
             raise _db_not_configured() from exc
 
@@ -110,19 +109,22 @@ def create_app(
         offset: Annotated[int, Query(ge=0)] = 0,
     ) -> dict[str, Any]:
         try:
-            return await _call_repository(
-                get_repository,
-                "places",
-                q=q,
-                service_slug=service_slug,
-                category=category,
-                is_open=is_open,
-                detail_status_code=detail_status_code,
-                business_type_name=business_type_name,
-                subtype_name=subtype_name,
-                sales_method_name=sales_method_name,
-                limit=limit,
-                offset=offset,
+            return cast(
+                dict[str, Any],
+                await _call_repository(
+                    get_repository,
+                    "places",
+                    q=q,
+                    service_slug=service_slug,
+                    category=category,
+                    is_open=is_open,
+                    detail_status_code=detail_status_code,
+                    business_type_name=business_type_name,
+                    subtype_name=subtype_name,
+                    sales_method_name=sales_method_name,
+                    limit=limit,
+                    offset=offset,
+                ),
             )
         except DatabaseNotConfiguredError as exc:
             raise _db_not_configured() from exc
@@ -135,7 +137,7 @@ def create_app(
             raise _db_not_configured() from exc
         if detail is None:
             raise HTTPException(status_code=404, detail="인허가 레코드를 찾을 수 없습니다")
-        return detail
+        return cast(dict[str, Any], detail)
 
     dist = Path(frontend_dist) if frontend_dist else _default_frontend_dist()
     if dist.exists():
@@ -175,13 +177,13 @@ class AsyncSQLAlchemyPlaceRepository:
                         )
                     )
                 }
-                category_rows = (
+                summary_category_rows = (
                     await session.execute(
                         select(PlaceCategorySummary.category, PlaceCategorySummary.total_count)
                         .order_by(PlaceCategorySummary.total_count.desc())
                     )
                 ).all()
-                service_rows = (
+                summary_service_rows = (
                     await session.execute(
                         select(PlaceServiceSummary.service_slug, PlaceServiceSummary.total_count)
                         .order_by(PlaceServiceSummary.total_count.desc())
@@ -198,10 +200,11 @@ class AsyncSQLAlchemyPlaceRepository:
                 "serviceCount": stat_values.get("service_count", 0),
                 "categories": [
                     {"category": category or "미분류", "count": int(count)}
-                    for category, count in category_rows
+                    for category, count in summary_category_rows
                 ],
                 "topServices": [
-                    self._service_count_item(str(slug), int(count)) for slug, count in service_rows
+                    self._service_count_item(str(slug), int(count))
+                    for slug, count in summary_service_rows
                 ],
             }
 
@@ -221,14 +224,14 @@ class AsyncSQLAlchemyPlaceRepository:
                 session,
                 select(func.count(func.distinct(PlaceMaster.service_slug))),
             )
-            category_rows = (
+            aggregate_category_rows = (
                 await session.execute(
                     select(PlaceMaster.category, func.count())
                     .group_by(PlaceMaster.category)
                     .order_by(func.count().desc())
                 )
             ).all()
-            service_rows = (
+            aggregate_service_rows = (
                 await session.execute(
                     select(PlaceMaster.service_slug, func.count())
                     .group_by(PlaceMaster.service_slug)
@@ -244,10 +247,11 @@ class AsyncSQLAlchemyPlaceRepository:
             "serviceCount": service_count,
             "categories": [
                 {"category": category or "미분류", "count": int(count)}
-                for category, count in category_rows
+                for category, count in aggregate_category_rows
             ],
             "topServices": [
-                self._service_count_item(str(slug), int(count)) for slug, count in service_rows
+                self._service_count_item(str(slug), int(count))
+                for slug, count in aggregate_service_rows
             ],
         }
 
@@ -823,4 +827,7 @@ def _configure_cors(app: FastAPI) -> None:
 
 
 def _default_frontend_dist() -> Path:
-    return Path(__file__).resolve().parents[1] / "frontend" / "dist"
+    package_dist = Path(__file__).resolve().parents[1] / "frontend" / "dist"
+    if package_dist.exists():
+        return package_dist
+    return Path(__file__).resolve().parents[3] / "frontend" / "dist"

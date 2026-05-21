@@ -1,13 +1,13 @@
 # DB 브라우저 웹앱
 
-`apps/db_browser`는 `mois`로 SQLite/SpatiaLite에 적재한 인허가 DB를 조회하는 웹앱입니다. 백엔드는 FastAPI, 프론트엔드는 React와 Tailwind CSS 기반입니다.
+`packages/mois-debug-ui`는 `mois`로 SQLite/SpatiaLite에 적재한 인허가 DB를 조회하는 웹앱입니다. 백엔드는 FastAPI, 프론트엔드는 React와 Tailwind CSS 기반입니다.
 
 ## 구성
 
 | 경로 | 설명 |
 |---|---|
-| `apps/db_browser/backend` | FastAPI API 서버 |
-| `apps/db_browser/frontend` | Vite + React + Tailwind CSS 프론트엔드 |
+| `packages/mois-debug-ui/src/mois_debug_ui/backend` | FastAPI API 서버 |
+| `packages/mois-debug-ui/frontend` | Vite + React + Tailwind CSS 프론트엔드 |
 
 백엔드는 `mois_place_master`, `mois_place_detail` 테이블을 읽습니다. DB 파일 경로는 `MOIS_SQLITE_PATH` 환경변수로 전달합니다. FastAPI 라우트와 조회 저장소는 `sqlite+aiosqlite` 기반 SQLAlchemy 2 `AsyncEngine`/`AsyncSession`을 사용합니다. 스키마 생성과 대량 파일 적재는 배치 작업 성격이라 기존 동기 SQLAlchemy 경로를 유지합니다.
 
@@ -34,17 +34,17 @@ artifacts/localdata/hospitals_info.bin
 
 ## 다운로드 파일 적재
 
-이미 내려받은 localdata CSV/ZIP 파일은 `apps.db_browser.backend.load_sqlite` CLI로 적재합니다. 파일은 CP949 CSV 또는 ZIP을 모두 처리하며, 좌표는 기존 `mois` 로더를 거쳐 WGS84 `(lat, lon)`와 WKT로 저장합니다.
+이미 내려받은 localdata CSV/ZIP 파일은 `mois_debug_ui.backend.load_sqlite` CLI로 적재합니다. 파일은 CP949 CSV 또는 ZIP을 모두 처리하며, 좌표는 기존 `mois` 로더를 거쳐 WGS84 `(lat, lon)`와 WKT로 저장합니다.
 
 ```powershell
 $env:MOIS_SQLITE_PATH = "F:\dev\pykrmois\artifacts\mois.sqlite"
-python -m apps.db_browser.backend.load_sqlite --file artifacts/localdata/hospitals_info.bin --slug hospitals --replace-slug
+python -m mois_debug_ui.backend.load_sqlite --file artifacts/localdata/hospitals_info.bin --slug hospitals --replace-slug
 ```
 
 asyncio 흐름에서는 같은 로컬 파일 적재를 `aload_local_file_to_sqlite()`로 실행할 수 있습니다.
 
 ```python
-from apps.db_browser.backend.load_sqlite import aload_local_file_to_sqlite
+from mois_debug_ui.backend.load_sqlite import aload_local_file_to_sqlite
 
 loaded = await aload_local_file_to_sqlite(
     database_path="artifacts/mois.sqlite",
@@ -67,13 +67,13 @@ SQLite 파일 크기를 줄이기 위해 컬럼으로 승격한 필드는 상세
 ## 백엔드 실행
 
 ```powershell
-pip install -e ".[web,dev]"
+pip install -e ".[dev]"
+pip install -e packages/mois-debug-ui
 
 $env:MOIS_SQLITE_PATH = "F:\dev\pykrmois\artifacts\mois.sqlite"
 $env:MOIS_WEB_HOST = "127.0.0.1"
 $env:MOIS_WEB_PORT = "8611"
-$env:PYTHONPATH = "src"
-python -m apps.db_browser.backend
+python -m mois_debug_ui.backend
 ```
 
 주요 API:
@@ -104,7 +104,7 @@ python -m apps.db_browser.backend
 ## 프론트엔드 실행
 
 ```powershell
-cd apps\db_browser\frontend
+cd packages\mois-debug-ui\frontend
 npm install
 npm run dev
 ```
@@ -121,16 +121,15 @@ $env:VITE_KAKAO_MAP_APP_KEY = "Kakao JavaScript 앱 키"
 ## 빌드 후 백엔드에서 함께 서빙
 
 ```powershell
-cd apps\db_browser\frontend
+cd packages\mois-debug-ui\frontend
 npm run build
 
 cd ..\..\..
 $env:MOIS_SQLITE_PATH = "F:\dev\pykrmois\artifacts\mois.sqlite"
-$env:PYTHONPATH = "src"
-python -m apps.db_browser.backend
+python -m mois_debug_ui.backend
 ```
 
-`apps/db_browser/frontend/dist`가 있으면 FastAPI가 빌드된 프론트엔드를 함께 서빙합니다.
+`packages/mois-debug-ui/frontend/dist`가 있으면 FastAPI가 빌드된 프론트엔드를 함께 서빙합니다.
 
 ## 화면에서 확인할 수 있는 것
 

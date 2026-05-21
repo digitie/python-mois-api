@@ -8,10 +8,10 @@ import pytest
 pytest.importorskip("fastapi")
 
 from fastapi.testclient import TestClient  # noqa: E402
-
-from apps.db_browser.backend import load_sqlite  # noqa: E402
-from apps.db_browser.backend.app import create_app  # noqa: E402
 from mois.files import iter_records_from_bytes  # noqa: E402
+
+from mois_debug_ui.backend import load_sqlite  # noqa: E402
+from mois_debug_ui.backend.app import create_app  # noqa: E402
 
 CSV_TEXT = (
     "개방자치단체코드,관리번호,인허가일자,영업상태명,사업장명,"

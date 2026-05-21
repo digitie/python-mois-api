@@ -103,7 +103,7 @@ DB 브라우저 API 서버를 실행합니다.
 
 ```powershell
 $env:PYTHONPATH = "src"
-python -m apps.db_browser.backend
+python -m mois_debug_ui.backend
 ```
 
 기본 검증은 네트워크 없이 실행합니다.

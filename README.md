@@ -27,7 +27,8 @@ pip install python-mois-api
 개발 중인 저장소에서는 다음처럼 설치합니다.
 
 ```bash
-pip install -e ".[dev,web]"
+pip install -e ".[dev]"
+pip install -e packages/mois-debug-ui
 ```
 
 ## OpenAPI 사용
@@ -169,11 +170,10 @@ python -m tools.load_all_localdata_to_sqlite --output-dir artifacts/localdata --
 ```powershell
 $env:MOIS_SQLITE_PATH = "F:\dev\pykrmois\artifacts\mois.sqlite"
 $env:MOIS_WEB_PORT = "8611"
-$env:PYTHONPATH = "src"
-python -m apps.db_browser.backend
+python -m mois_debug_ui.backend
 ```
 
-기본 API는 `http://127.0.0.1:8611/api`입니다. 프론트엔드는 `apps/db_browser/frontend`의 Vite 앱이며 개발 URL은 `http://localhost:8610`입니다.
+기본 API는 `http://127.0.0.1:8611/api`입니다. 프론트엔드는 `packages/mois-debug-ui/frontend`의 Vite 앱이며 개발 URL은 `http://localhost:8610`입니다.
 
 ## 문서 목록
 

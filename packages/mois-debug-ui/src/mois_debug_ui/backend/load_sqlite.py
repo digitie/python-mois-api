@@ -8,10 +8,6 @@ import os
 from collections.abc import Iterable
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session
-
 from mois import (
     LocalDataRecord,
     bulk_upsert_places,
@@ -20,6 +16,9 @@ from mois import (
     refresh_sqlite_derived_tables,
 )
 from mois.files import iter_records_from_binary
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
 
 
 def sqlite_url(path: str | os.PathLike[str]) -> str:

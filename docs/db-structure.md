@@ -157,7 +157,7 @@ flowchart TD
 
 ### DB 브라우저 목록 조회
 
-`apps/db_browser/backend/app.py`의 `/api/places`는 다음 조건을 조합합니다.
+`packages/mois-debug-ui/src/mois_debug_ui/backend/app.py`의 `/api/places`는 다음 조건을 조합합니다.
 
 - `service_slug`
 - `category`

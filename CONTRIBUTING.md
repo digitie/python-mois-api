@@ -15,8 +15,9 @@ python -m pytest
 - `python -m ruff check .`
 - `python -m mypy src/mois`
 - 문서가 한국어로 유지되는지 확인
+- 패키지명, 함수명, 환경변수, URL, 표준 기술명처럼 코드나 공식 명칭으로 식별해야 하는 값만 원문 표기를 유지
 
-## live 테스트
+## 실제 호출 테스트
 
 실제 API 호출 테스트는 기본 테스트에 섞지 않습니다. 인증키가 필요한 테스트는 `DATA_GO_KR_SERVICE_KEY` 환경변수를 사용하고 `@pytest.mark.live`를 붙입니다.
 

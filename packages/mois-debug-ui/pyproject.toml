@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "python-mois-debug-ui"
 version = "0.1.0"
-description = "Debug web UI for python-mois-api SQLite localdata databases."
+description = "python-mois-api SQLite localdata DB 점검용 디버그 웹 UI."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

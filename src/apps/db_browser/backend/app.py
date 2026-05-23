@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import uuid
 from collections.abc import Callable
 from datetime import date, datetime
@@ -12,13 +13,16 @@ from typing import Annotated, Any
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import case, create_engine, func, or_, select
+from sqlalchemy import case, create_engine, func, or_, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from mois import (
+    PlaceCategorySummary,
     PlaceDetail,
     PlaceMaster,
+    PlaceServiceSummary,
+    PlaceStatsSummary,
     compact_json_dumps,
     create_sqlite_schema,
     list_file_downloads,
@@ -27,6 +31,7 @@ from mois import (
 
 DEFAULT_LIMIT = 50
 MAX_LIMIT = 200
+FTS_TOKEN_RE = re.compile(r"[0-9A-Za-z_가-힣]+")
 
 
 class DatabaseNotConfiguredError(RuntimeError):
@@ -136,8 +141,44 @@ class SQLAlchemyPlaceRepository:
         self._session_factory: Callable[[], Session] = sessionmaker(bind=engine)
         self._catalog = {download.slug: download for download in list_file_downloads()}
         self.spatialite_enabled = spatialite_enabled
+        self.summary_enabled = _sqlite_table_has_rows(engine, PlaceStatsSummary.__tablename__)
+        self.search_enabled = _sqlite_table_has_rows(engine, "mois_place_search")
 
     def stats(self) -> dict[str, Any]:
+        if self.summary_enabled:
+            with self._session_factory() as session:
+                stat_values = {
+                    str(key): int(value)
+                    for key, value in session.execute(
+                        select(PlaceStatsSummary.key, PlaceStatsSummary.value)
+                    )
+                }
+                category_rows = session.execute(
+                    select(PlaceCategorySummary.category, PlaceCategorySummary.total_count)
+                    .order_by(PlaceCategorySummary.total_count.desc())
+                ).all()
+                service_rows = session.execute(
+                    select(PlaceServiceSummary.service_slug, PlaceServiceSummary.total_count)
+                    .order_by(PlaceServiceSummary.total_count.desc())
+                    .limit(12)
+                ).all()
+            total = stat_values.get("total", 0)
+            open_count = stat_values.get("open", 0)
+            return {
+                "total": total,
+                "open": open_count,
+                "closedOrUnknown": max(total - open_count, 0),
+                "withCoordinates": stat_values.get("with_coordinates", 0),
+                "serviceCount": stat_values.get("service_count", 0),
+                "categories": [
+                    {"category": category or "미분류", "count": int(count)}
+                    for category, count in category_rows
+                ],
+                "topServices": [
+                    self._service_count_item(str(slug), int(count)) for slug, count in service_rows
+                ],
+            }
+
         with self._session_factory() as session:
             total = _scalar_int(session, select(func.count()).select_from(PlaceMaster))
             open_count = _scalar_int(
@@ -181,6 +222,30 @@ class SQLAlchemyPlaceRepository:
         }
 
     def services(self) -> list[dict[str, Any]]:
+        if self.summary_enabled:
+            with self._session_factory() as session:
+                rows = session.execute(
+                    select(
+                        PlaceServiceSummary.service_slug,
+                        PlaceServiceSummary.category,
+                        PlaceServiceSummary.title,
+                        PlaceServiceSummary.domain_category,
+                        PlaceServiceSummary.total_count,
+                        PlaceServiceSummary.open_count,
+                    ).order_by(PlaceServiceSummary.category, PlaceServiceSummary.title)
+                ).all()
+            return [
+                self._service_item(
+                    service_slug=str(slug),
+                    category=_optional_str(category),
+                    title=_optional_str(title),
+                    domain_category=_optional_str(domain_category),
+                    total=int(total),
+                    open_count=int(open_count or 0),
+                )
+                for slug, category, title, domain_category, total, open_count in rows
+            ]
+
         open_case = case((PlaceMaster.is_open.is_(True), 1), else_=0)
         with self._session_factory() as session:
             rows = session.execute(
@@ -226,6 +291,21 @@ class SQLAlchemyPlaceRepository:
         limit: int,
         offset: int,
     ) -> dict[str, Any]:
+        fts_query = _fts_query(q)
+        if fts_query and self.search_enabled:
+            return self._places_with_fts(
+                fts_query=fts_query,
+                service_slug=service_slug,
+                category=category,
+                is_open=is_open,
+                detail_status_code=detail_status_code,
+                business_type_name=business_type_name,
+                subtype_name=subtype_name,
+                sales_method_name=sales_method_name,
+                limit=limit,
+                offset=offset,
+            )
+
         filters = _place_filters(
             q=q,
             service_slug=service_slug,
@@ -247,6 +327,70 @@ class SQLAlchemyPlaceRepository:
                 .order_by(PlaceMaster.updated_at.desc(), PlaceMaster.place_name)
                 .limit(limit)
                 .offset(offset)
+            ).all()
+        return {
+            "items": [_place_summary(row) for row in rows],
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+
+    def _places_with_fts(
+        self,
+        *,
+        fts_query: str,
+        service_slug: str | None,
+        category: str | None,
+        is_open: bool | None,
+        detail_status_code: str | None,
+        business_type_name: str | None,
+        subtype_name: str | None,
+        sales_method_name: str | None,
+        limit: int,
+        offset: int,
+    ) -> dict[str, Any]:
+        where_sql, params = _place_filter_sql(
+            service_slug=service_slug,
+            category=category,
+            is_open=is_open,
+            detail_status_code=detail_status_code,
+            business_type_name=business_type_name,
+            subtype_name=subtype_name,
+            sales_method_name=sales_method_name,
+        )
+        params = {
+            **params,
+            "fts_query": fts_query,
+            "limit": limit,
+            "offset": offset,
+        }
+        clauses = ["mois_place_search MATCH :fts_query", *where_sql]
+        where_clause = " AND ".join(clauses)
+        from_clause = """
+            FROM mois_place_master AS m
+            JOIN mois_place_search ON mois_place_search.place_id = m.place_id
+        """
+        with self._session_factory() as session:
+            total = int(
+                session.scalar(
+                    text(f"SELECT count(*) {from_clause} WHERE {where_clause}"),
+                    params,
+                )
+                or 0
+            )
+            rows = session.scalars(
+                select(PlaceMaster).from_statement(
+                    text(
+                        f"""
+                        SELECT m.*
+                          {from_clause}
+                         WHERE {where_clause}
+                         ORDER BY m.updated_at DESC, m.place_name
+                         LIMIT :limit OFFSET :offset
+                        """
+                    )
+                ),
+                params,
             ).all()
         return {
             "items": [_place_summary(row) for row in rows],
@@ -328,6 +472,75 @@ def _with_service_application_urls(items: list[dict[str, Any]]) -> list[dict[str
         enriched_item["applicationUrl"] = service.application_url if service else None
         enriched.append(enriched_item)
     return enriched
+
+
+def _sqlite_table_has_rows(engine: Engine, table_name: str) -> bool:
+    if engine.dialect.name != "sqlite":
+        return False
+    try:
+        with engine.connect() as connection:
+            if not connection.execute(
+                text(
+                    """
+                    SELECT 1
+                      FROM sqlite_master
+                     WHERE name = :name
+                       AND type IN ('table', 'virtual table')
+                    """
+                ),
+                {"name": table_name},
+            ).first():
+                return False
+            return bool(
+                connection.execute(text(f"SELECT 1 FROM {table_name} LIMIT 1")).first()
+            )
+    except Exception:
+        return False
+
+
+def _fts_query(q: str | None) -> str | None:
+    if not q:
+        return None
+    tokens = [token for token in FTS_TOKEN_RE.findall(q.strip()) if token]
+    if not tokens:
+        return None
+    return " AND ".join(f"{token}*" for token in tokens)
+
+
+def _place_filter_sql(
+    *,
+    service_slug: str | None,
+    category: str | None,
+    is_open: bool | None,
+    detail_status_code: str | None,
+    business_type_name: str | None,
+    subtype_name: str | None,
+    sales_method_name: str | None,
+) -> tuple[list[str], dict[str, Any]]:
+    filters: list[str] = []
+    params: dict[str, Any] = {}
+    if service_slug:
+        filters.append("m.service_slug = :service_slug")
+        params["service_slug"] = service_slug
+    if category:
+        filters.append("m.category = :category")
+        params["category"] = category
+    if is_open is not None:
+        filters.append("m.is_open = :is_open")
+        params["is_open"] = 1 if is_open else 0
+    if detail_status_code:
+        filters.append("m.detail_status_code = :detail_status_code")
+        params["detail_status_code"] = detail_status_code
+    if business_type_name:
+        filters.append("m.business_type_name = :business_type_name")
+        params["business_type_name"] = business_type_name
+    if subtype_name:
+        filters.append("m.subtype_name = :subtype_name")
+        params["subtype_name"] = subtype_name
+    if sales_method_name:
+        filters.append("m.sales_method_name = :sales_method_name")
+        params["sales_method_name"] = sales_method_name
+    return filters, params
 
 
 def _place_filters(

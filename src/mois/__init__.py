@@ -13,14 +13,17 @@ from .catalogs import (
     list_openapi_services,
     list_response_fields,
 )
-from .client import MoisClient
+from .client import AsyncMoisClient, MoisClient
 from .db import (
     Base,
     BatchSyncLog,
     LocalDataSourceDbSyncResult,
+    PlaceCategorySummary,
     PlaceDetail,
     PlaceMaster,
     PlaceRecord,
+    PlaceServiceSummary,
+    PlaceStatsSummary,
     build_place_models,
     bulk_upsert_places,
     compact_json_dumps,
@@ -33,6 +36,7 @@ from .db import (
     place_record_from_models,
     record_to_place_record,
     refresh_spatial_geometries,
+    refresh_sqlite_derived_tables,
     sync_localdata_source_db,
     upsert_place,
     upsert_places,
@@ -47,6 +51,7 @@ from .exceptions import (
     MoisServerError,
 )
 from .files import (
+    AsyncLocalDataFileClient,
     LocalDataFileClient,
     iter_records_from_binary,
     iter_records_from_bytes,
@@ -82,7 +87,12 @@ from .models import (
 from .parser import parse_openapi_payload, parse_openapi_response, parse_openapi_text
 from .processor import process_openapi_response
 
+PROVIDER_NAME = "python-krmois-api"
+
 __all__ = [
+    "PROVIDER_NAME",
+    "AsyncLocalDataFileClient",
+    "AsyncMoisClient",
     "BusinessStatusCategory",
     "Condition",
     "ConditionOperator",
@@ -111,8 +121,11 @@ __all__ = [
     "OpenApiItem",
     "OpenApiService",
     "PlaceDetail",
+    "PlaceCategorySummary",
     "PlaceMaster",
     "PlaceRecord",
+    "PlaceServiceSummary",
+    "PlaceStatsSummary",
     "ResponseField",
     "ServiceSlug",
     "StationCoordinates",
@@ -150,6 +163,7 @@ __all__ = [
     "place_record_from_models",
     "process_openapi_response",
     "record_to_place_record",
+    "refresh_sqlite_derived_tables",
     "refresh_spatial_geometries",
     "redact_sensitive",
     "save_debug_fixture",

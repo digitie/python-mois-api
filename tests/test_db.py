@@ -4,7 +4,7 @@ from datetime import date, datetime
 from uuid import UUID
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.dialects import sqlite
 from sqlalchemy.orm import Session
 from sqlalchemy.schema import CreateTable
@@ -14,12 +14,15 @@ from mois import (
     LocalDataSourceDbSyncResult,
     PlaceMaster,
     PlaceRecord,
+    PlaceServiceSummary,
+    PlaceStatsSummary,
     build_place_models,
     create_sqlite_schema,
     infer_domain_category,
     iter_closed_place_records,
     iter_open_place_records,
     record_to_place_record,
+    refresh_sqlite_derived_tables,
     sync_localdata_source_db,
     upsert_place,
 )
@@ -135,6 +138,8 @@ def test_sqlite_master_table_ddl_contains_wkt_and_indexes() -> None:
     assert "ix_mois_place_master_legal_dong" in index_names
     assert "ix_mois_place_master_road_name" in index_names
     assert "ix_mois_place_master_detail_status" in index_names
+    assert "ix_mois_place_master_detail_status_lookup" in index_names
+    assert "ix_mois_place_master_is_open" in index_names
     assert "ix_mois_place_master_subtype" in index_names
 
 
@@ -151,6 +156,42 @@ def test_sqlite_schema_upsert_and_json_filter() -> None:
         assert stored.geom_wkt.startswith("POINT(")
         bed_count = session.scalar(select(PlaceMaster.sickbed_count))
         assert bed_count == 92
+
+
+def test_sqlite_derived_tables_support_fast_browser_queries() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    create_sqlite_schema(engine, load_spatialite=False)
+    record = load_records_from_text(CSV_TEXT, slug="hospitals")[0]
+
+    with Session(engine) as session:
+        upsert_place(session, record, commit=True)
+
+    refresh_sqlite_derived_tables(engine)
+
+    with Session(engine) as session:
+        stats = {
+            str(key): int(value)
+            for key, value in session.execute(
+                select(PlaceStatsSummary.key, PlaceStatsSummary.value)
+            )
+        }
+        service = session.get(PlaceServiceSummary, "hospitals")
+        assert stats["total"] == 1
+        assert stats["open"] == 1
+        assert service is not None
+        assert service.total_count == 1
+
+    with engine.connect() as connection:
+        row = connection.execute(
+            text(
+                """
+                SELECT place_id
+                  FROM mois_place_search
+                 WHERE mois_place_search MATCH '포레스트*'
+                """
+            )
+        ).first()
+        assert row is not None
 
 
 def test_place_master_values_requires_management_number() -> None:

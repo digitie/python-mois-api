@@ -6,10 +6,12 @@ import hashlib
 import json
 import os
 import uuid
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, cast
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import (
@@ -540,6 +542,19 @@ class BatchSyncLog(Base):
     )
 
 
+@dataclass(frozen=True)
+class LocalDataSourceDbSyncResult:
+    """Result summary for a localdata source DB refresh."""
+
+    service_slugs: tuple[str, ...]
+    sync_kind: str
+    scanned_count: int
+    upserted_count: int
+    open_count: int
+    closed_count: int
+    unknown_status_count: int
+
+
 def infer_domain_category(category: str | None, title: str | None = None) -> str | None:
     """인허가 분류와 업종명으로 여행/상권 분석용 도메인을 추정합니다."""
 
@@ -665,6 +680,158 @@ def build_place_models(
     master = PlaceMaster(**place_master_values(place, place_id=actual_place_id))
     detail = PlaceDetail(**place_detail_values(place, actual_place_id))
     return master, detail
+
+
+def sync_localdata_source_db(
+    session: Session,
+    client: Any,
+    *,
+    service_slugs: Iterable[str],
+    org_code: str | None = None,
+    encoding: str | None = None,
+    batch_size: int = 1000,
+    sync_kind: str = "localdata_full",
+    commit: bool = False,
+) -> LocalDataSourceDbSyncResult:
+    """Refresh the MOIS source DB from `LocalDataFileClient` public iterators.
+
+    The source DB keeps open, closed, and cancelled localdata rows. Downstream
+    feature libraries can query only the open rows or explicitly inspect closed
+    rows through `iter_closed_place_records()`.
+    """
+
+    slugs = tuple(str(slug).strip() for slug in service_slugs if str(slug).strip())
+    if not slugs:
+        raise ValueError("service_slugs must contain at least one slug")
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
+
+    scanned_count = 0
+    upserted_count = 0
+    open_count = 0
+    closed_count = 0
+    unknown_status_count = 0
+
+    for slug in slugs:
+        slug_scanned = 0
+        slug_upserted = 0
+        iterator = client.iter(slug, org_code=org_code, encoding=encoding)
+        for batch in _batched(iterator, batch_size):
+            slug_scanned += len(batch)
+            scanned_count += len(batch)
+            for record in batch:
+                if record.is_open is True:
+                    open_count += 1
+                elif record.is_open is False:
+                    closed_count += 1
+                else:
+                    unknown_status_count += 1
+            written_ids = bulk_upsert_places(session, batch)
+            slug_upserted += len(written_ids)
+            upserted_count += len(written_ids)
+        _upsert_sync_log(
+            session,
+            service_slug=slug,
+            sync_kind=sync_kind,
+            fetched_count=slug_scanned,
+            status="success",
+        )
+
+    if commit:
+        session.commit()
+
+    return LocalDataSourceDbSyncResult(
+        service_slugs=slugs,
+        sync_kind=sync_kind,
+        scanned_count=scanned_count,
+        upserted_count=upserted_count,
+        open_count=open_count,
+        closed_count=closed_count,
+        unknown_status_count=unknown_status_count,
+    )
+
+
+def iter_place_records(
+    session: Session,
+    *,
+    service_slugs: Iterable[str] | None = None,
+    is_open: bool | None = None,
+    batch_size: int = 1000,
+) -> Iterator[PlaceRecord]:
+    """Stream `PlaceRecord` rows from the MOIS source DB."""
+
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
+
+    slugs = (
+        tuple(str(slug).strip() for slug in service_slugs if str(slug).strip())
+        if service_slugs is not None
+        else ()
+    )
+    if service_slugs is not None and not slugs:
+        return
+
+    statement = (
+        select(PlaceMaster, PlaceDetail)
+        .join(PlaceDetail, PlaceDetail.place_id == PlaceMaster.place_id, isouter=True)
+        .order_by(PlaceMaster.service_slug, PlaceMaster.mng_no)
+    )
+    if slugs:
+        statement = statement.where(PlaceMaster.service_slug.in_(slugs))
+    if is_open is not None:
+        statement = statement.where(PlaceMaster.is_open.is_(is_open))
+
+    for master, detail in session.execute(statement).yield_per(batch_size):
+        yield place_record_from_models(master, detail)
+
+
+def iter_open_place_records(
+    session: Session,
+    *,
+    service_slugs: Iterable[str] | None = None,
+    batch_size: int = 1000,
+) -> Iterator[PlaceRecord]:
+    """Stream open/active license rows from the MOIS source DB."""
+
+    yield from iter_place_records(
+        session,
+        service_slugs=service_slugs,
+        is_open=True,
+        batch_size=batch_size,
+    )
+
+
+def iter_closed_place_records(
+    session: Session,
+    *,
+    service_slugs: Iterable[str] | None = None,
+    batch_size: int = 1000,
+) -> Iterator[PlaceRecord]:
+    """Stream closed/cancelled license rows from the MOIS source DB."""
+
+    yield from iter_place_records(
+        session,
+        service_slugs=service_slugs,
+        is_open=False,
+        batch_size=batch_size,
+    )
+
+
+def place_record_from_models(
+    master: PlaceMaster,
+    detail: PlaceDetail | None = None,
+) -> PlaceRecord:
+    """Convert ORM rows back to the stable public `PlaceRecord` model."""
+
+    values: dict[str, Any] = {}
+    for field_name in PlaceRecord.model_fields:
+        if field_name in {"data", "raw"}:
+            continue
+        if hasattr(master, field_name):
+            values[field_name] = getattr(master, field_name)
+    values["data"] = dict(detail.specific_data if detail is not None else {})
+    values["raw"] = dict(detail.raw_data if detail is not None else {})
+    return PlaceRecord(**values)
 
 
 def compact_json_dumps(value: Any) -> str:
@@ -926,6 +1093,54 @@ def bulk_upsert_places(
     )
     session.execute(detail_statement, detail_rows)
     return [place_ids_by_key[(place.service_slug, place.mng_no or "")] for place in deduped_places]
+
+
+def _upsert_sync_log(
+    session: Session,
+    *,
+    service_slug: str,
+    sync_kind: str,
+    fetched_count: int,
+    status: str,
+    error_message: str | None = None,
+) -> None:
+    now = datetime.now(ZoneInfo("Asia/Seoul"))
+    log = session.get(
+        BatchSyncLog,
+        {"service_slug": service_slug, "sync_kind": sync_kind},
+    )
+    if log is None:
+        log = BatchSyncLog(
+            service_slug=service_slug,
+            sync_kind=sync_kind,
+            condition_field=None,
+            fetched_count=fetched_count,
+            status=status,
+            last_success_at=now if status == "success" else None,
+            error_message=error_message,
+        )
+        session.add(log)
+        return
+    log.fetched_count = fetched_count
+    log.status = status
+    log.error_message = error_message
+    log.updated_at = now
+    if status == "success":
+        log.last_success_at = now
+
+
+def _batched(
+    records: Iterable[LocalDataRecord | PlaceRecord],
+    batch_size: int,
+) -> Iterator[list[LocalDataRecord | PlaceRecord]]:
+    batch: list[LocalDataRecord | PlaceRecord] = []
+    for record in records:
+        batch.append(record)
+        if len(batch) >= batch_size:
+            yield batch
+            batch = []
+    if batch:
+        yield batch
 
 
 def _stable_place_id(place: PlaceRecord) -> uuid.UUID:

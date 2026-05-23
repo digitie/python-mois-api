@@ -2,6 +2,10 @@
 
 이 저장소는 행정안전부 지방행정 인허가정보 OpenAPI와 localdata 파일 다운로드를 다룹니다.
 
+## 문서 언어 정책
+
+이 저장소의 모든 Markdown/RST 문서는 한글로 작성합니다. 공식 API 필드명, 코드 식별자, 명령어, URL, provider 원문처럼 그대로 보존해야 하는 값만 영어를 유지합니다. 새 문서나 기존 문서를 수정할 때도 이 규칙을 우선합니다.
+
 ## 기본 원칙
 
 - 사용자-facing 문서는 한국어로 작성합니다.
@@ -12,7 +16,7 @@
 - TripMate나 `python-krtour-map`에서 필요한 endpoint, pagination, cursor, exception, raw payload 계약이 부족하면 이 저장소의 public API를 먼저 안정화합니다.
 - 검증된 다른 라이브러리의 구현이 더 적합하면 wrapper로 감싸지 말고 라이선스와 출처를 확인한 뒤 프로젝트 코드에 직접 반영합니다.
 - 기본 테스트는 네트워크를 사용하지 않습니다.
-- live 테스트는 `MOIS_SERVICE_KEY`가 있을 때만 실행되게 분리합니다.
+- live 테스트는 `DATA_GO_KR_SERVICE_KEY`가 있을 때만 실행되게 분리합니다.
 - 인허가정보 CSV는 CP949, 좌표계는 EPSG:5174라는 전제를 잊지 않습니다.
 
 ## 변경 전 확인

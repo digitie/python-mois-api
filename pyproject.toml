@@ -66,5 +66,5 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-ra"
 markers = [
-  "live: real network tests that require MOIS_SERVICE_KEY",
+  "live: real network tests that require DATA_GO_KR_SERVICE_KEY",
 ]

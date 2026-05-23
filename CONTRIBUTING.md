@@ -18,7 +18,7 @@ python -m pytest
 
 ## live 테스트
 
-실제 API 호출 테스트는 기본 테스트에 섞지 않습니다. 인증키가 필요한 테스트는 `MOIS_SERVICE_KEY` 환경변수를 사용하고 `@pytest.mark.live`를 붙입니다.
+실제 API 호출 테스트는 기본 테스트에 섞지 않습니다. 인증키가 필요한 테스트는 `DATA_GO_KR_SERVICE_KEY` 환경변수를 사용하고 `@pytest.mark.live`를 붙입니다.
 
 ## 카탈로그 변경
 

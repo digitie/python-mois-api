@@ -9,6 +9,7 @@ repos:
     hooks:
       - id: mypy
         args: ["src/mois"]
+        pass_filenames: false
         additional_dependencies:
           - pydantic>=2.7
           - sqlalchemy>=2.0

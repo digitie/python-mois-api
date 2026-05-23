@@ -48,7 +48,7 @@ class MoisClient:
         self.closed = False
 
     @classmethod
-    def from_env(cls, name: str = "MOIS_SERVICE_KEY", **kwargs: Any) -> MoisClient:
+    def from_env(cls, name: str = "DATA_GO_KR_SERVICE_KEY", **kwargs: Any) -> MoisClient:
         """환경변수에서 서비스키를 읽어 동기 클라이언트를 만듭니다."""
 
         try:
@@ -781,7 +781,7 @@ class AsyncMoisClient:
 def _resolve_service_key(service_key: str | None, api_key: str | None) -> str | None:
     resolved = service_key if service_key is not None else api_key
     if resolved is None:
-        resolved = os.getenv("MOIS_SERVICE_KEY")
+        resolved = os.getenv("DATA_GO_KR_SERVICE_KEY")
     return resolved
 
 

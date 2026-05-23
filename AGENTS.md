@@ -50,7 +50,7 @@ PC 개발은 **WSL ext4** 위에서 수행한다. NTFS 마운트에서 직접 `g
 2. **API 목록 손 복사 금지** — `src/mois/catalog.py`와 `tools/generate_docs.py`를 기준으로 관리한다. 목록을 직접 손으로 옮기지 않는다.
 3. **좌표 원본 덮어쓰기 금지** — EPSG:5174 원본은 보존하고 WGS84 `(lon, lat)`를 추가한다. 좌표 순서는 KATEC이 `(x, y)`, WGS84가 `(lon, lat)`.
 4. **빈 값을 0으로 치환 금지** — 의미 없는 빈 문자열은 `None`이다. 숫자 0으로 바꾸지 않는다.
-5. **외부 API 키 평문 커밋 금지** — `MOIS_SERVICE_KEY`는 환경변수로만 전달. `.env`는 `.gitignore`에 포함.
+5. **외부 API 키 평문 커밋 금지** — `DATA_GO_KR_SERVICE_KEY`는 환경변수로만 전달. `.env`는 `.gitignore`에 포함.
 6. **localdata 다운로드 순서 무시 금지** — 안내 페이지 GET → 다운로드 제한 확인 → 실제 다운로드 순서를 지킨다. URL만 바로 호출하면 403.
 7. **삭제 응답변수 기본 포함 금지** — 붙임3의 삭제 항목은 기본 목록에서 제외한다.
 8. **원본 CSV/ZIP을 문서·fixture 경로에 두기 금지** — `artifacts/` 같은 gitignore 대상 경로에 저장한다.

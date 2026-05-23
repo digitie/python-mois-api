@@ -38,7 +38,7 @@ class MoisClient:
         self.base_url = base_url.rstrip("/") if base_url else None
 
     @classmethod
-    def from_env(cls, name: str = "MOIS_SERVICE_KEY", **kwargs: Any) -> MoisClient:
+    def from_env(cls, name: str = "DATA_GO_KR_SERVICE_KEY", **kwargs: Any) -> MoisClient:
         """환경변수에서 서비스키를 읽어 클라이언트를 만듭니다."""
 
         try:

@@ -14,6 +14,7 @@
 - CP949 CSV, 날짜/시각, 숫자, EPSG:5174 좌표 자동 변환
 - EPSG:5174 좌표를 WGS84 `(lon, lat)`로 변환하고 좌표 값 객체 제공
 - SQLite/SpatiaLite 기반 로컬 DB 적재 모델과 DB 브라우저 서버 제공
+- localdata source DB 주기 갱신 helper와 영업중/폐업·취소 row 조회 iterator 제공
 - 디버그 fixture JSON을 외부 호출 없이 replay하는 pytest runner 구조 제공
 - 네트워크 없는 단위 테스트와 실제 호출용 live 테스트 분리
 
@@ -63,7 +64,7 @@ history_at = client.get_history_at("hospitals", "20260101", org_code="3000000")
 환경변수도 사용할 수 있습니다.
 
 ```bash
-export MOIS_SERVICE_KEY="공공데이터포털_서비스키"
+export DATA_GO_KR_SERVICE_KEY="공공데이터포털_서비스키"
 ```
 
 ```python
@@ -113,6 +114,40 @@ with Session(engine) as session:
     upsert_places(session, records, commit=True)
 ```
 
+TripMate 계열 feature 적재에서는 이 DB가 KRMOIS raw/localdata source-of-record입니다.
+주기 갱신은 `sync_localdata_source_db()`를 사용하고, feature 승격 대상은
+`iter_open_place_records()`로 읽습니다. 폐업/취소 업체만 따로 확인해야 할 때는
+`iter_closed_place_records()`를 사용합니다.
+
+```python
+from sqlalchemy.orm import Session
+
+from mois import (
+    LocalDataFileClient,
+    iter_closed_place_records,
+    iter_open_place_records,
+    sync_localdata_source_db,
+)
+
+file_client = LocalDataFileClient()
+
+with Session(engine) as session:
+    sync_localdata_source_db(
+        session,
+        file_client,
+        service_slugs=("hospitals", "pharmacies", "tourist_accommodations"),
+        sync_kind="localdata_full",
+        commit=True,
+    )
+
+    open_places = iter_open_place_records(session, service_slugs=("hospitals",))
+    closed_places = iter_closed_place_records(session, service_slugs=("hospitals",))
+```
+
+TripMate의 full source DB 갱신 주기는 1주일 1회로 둡니다. 이 라이브러리는 source DB를
+업데이트하고 폐업/취소 row도 보존하지만, `python-krtour-map`은 영업중 row만 feature로
+승격하고 폐업/취소 feature는 삭제합니다.
+
 이미 내려받은 195개 파일을 모두 적재하려면 운영 스크립트를 사용합니다.
 
 ```powershell
@@ -156,7 +191,7 @@ python -m ruff check .
 python -m mypy src/mois
 ```
 
-기본 테스트는 실제 API를 호출하지 않습니다. 실제 호출 테스트를 추가할 때는 `@pytest.mark.live`를 붙이고 `MOIS_SERVICE_KEY`가 있을 때만 실행되게 합니다.
+기본 테스트는 실제 API를 호출하지 않습니다. 실제 호출 테스트를 추가할 때는 `@pytest.mark.live`를 붙이고 `DATA_GO_KR_SERVICE_KEY`가 있을 때만 실행되게 합니다.
 
 ## 참고 출처
 

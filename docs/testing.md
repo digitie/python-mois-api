@@ -36,9 +36,9 @@ from mois import MoisClient
 
 @pytest.mark.live
 def test_live_hospitals_first_page():
-    key = os.getenv("MOIS_SERVICE_KEY")
+    key = os.getenv("DATA_GO_KR_SERVICE_KEY")
     if not key:
-        pytest.skip("MOIS_SERVICE_KEY가 없습니다")
+        pytest.skip("DATA_GO_KR_SERVICE_KEY가 없습니다")
     client = MoisClient(key)
     rows = client.get_hospitals(num_of_rows=1)
     assert isinstance(rows, list)

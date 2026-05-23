@@ -655,7 +655,7 @@ def write_incremental_openapi(root: Path) -> None:
     lines.append("1. 아래 목록에서 필요한 업종의 `신청` 링크를 엽니다.")
     lines.append("2. 공공데이터포털에 로그인한 뒤 `활용신청`을 진행합니다.")
     lines.append(
-        "3. 승인 후 발급된 디코딩 서비스키를 `MOIS_SERVICE_KEY` 또는 "
+        "3. 승인 후 발급된 디코딩 서비스키를 `DATA_GO_KR_SERVICE_KEY` 또는 "
         "`MoisClient`에 전달합니다."
     )
     lines.append("4. 여러 업종을 호출해야 하면 각 업종 OpenAPI의 활용 권한을 확인합니다.")

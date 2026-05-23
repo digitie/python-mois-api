@@ -165,14 +165,14 @@ with Session(engine) as session:
 이미 내려받은 195개 파일을 모두 적재하려면 운영 스크립트를 사용합니다.
 
 ```powershell
-$env:MOIS_SQLITE_PATH = "F:\dev\pykrmois\artifacts\mois.sqlite"
+$env:MOIS_SQLITE_PATH = "F:\dev\python-mois-api\artifacts\mois.sqlite"
 python -m tools.load_all_localdata_to_sqlite --output-dir artifacts/localdata --replace-slug
 ```
 
 ## DB 브라우저
 
 ```powershell
-$env:MOIS_SQLITE_PATH = "F:\dev\pykrmois\artifacts\mois.sqlite"
+$env:MOIS_SQLITE_PATH = "F:\dev\python-mois-api\artifacts\mois.sqlite"
 $env:MOIS_WEB_PORT = "8611"
 python -m mois_debug_ui.backend
 ```

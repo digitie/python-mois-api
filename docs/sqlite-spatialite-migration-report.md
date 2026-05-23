@@ -31,7 +31,7 @@ Windows 개발 환경에서는 Gaia-SINS의 SpatiaLite 배포본을 사용합니
 ```powershell
 $env:PATH = "F:\dev\spatialite\bin;$env:PATH"
 $env:PROJ_LIB = "F:\dev\spatialite\bin"
-$env:MOIS_SQLITE_PATH = "F:\dev\pykrmois\artifacts\mois.sqlite"
+$env:MOIS_SQLITE_PATH = "F:\dev\python-mois-api\artifacts\mois.sqlite"
 ```
 
 ## 스키마 구조

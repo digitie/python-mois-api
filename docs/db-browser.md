@@ -37,7 +37,7 @@ artifacts/localdata/hospitals_info.bin
 이미 내려받은 localdata CSV/ZIP 파일은 `mois_debug_ui.backend.load_sqlite` CLI로 적재합니다. 파일은 CP949 CSV 또는 ZIP을 모두 처리하며, 좌표는 기존 `mois` 로더를 거쳐 WGS84 `(lat, lon)`와 WKT로 저장합니다.
 
 ```powershell
-$env:MOIS_SQLITE_PATH = "F:\dev\pykrmois\artifacts\mois.sqlite"
+$env:MOIS_SQLITE_PATH = "F:\dev\python-mois-api\artifacts\mois.sqlite"
 python -m mois_debug_ui.backend.load_sqlite --file artifacts/localdata/hospitals_info.bin --slug hospitals --replace-slug
 ```
 
@@ -57,7 +57,7 @@ loaded = await aload_local_file_to_sqlite(
 전체 195개 인허가 파일을 모두 저장하고 적재할 때는 운영 스크립트를 사용합니다.
 
 ```powershell
-$env:MOIS_SQLITE_PATH = "F:\dev\pykrmois\artifacts\mois.sqlite"
+$env:MOIS_SQLITE_PATH = "F:\dev\python-mois-api\artifacts\mois.sqlite"
 python -m tools.load_all_localdata_to_sqlite --output-dir artifacts/localdata --progress-path artifacts/load_all_localdata_sqlite_progress.jsonl --replace-slug --continue-on-error --batch-size 1000
 ```
 
@@ -70,7 +70,7 @@ SQLite 파일 크기를 줄이기 위해 컬럼으로 승격한 필드는 상세
 pip install -e ".[dev]"
 pip install -e packages/mois-debug-ui
 
-$env:MOIS_SQLITE_PATH = "F:\dev\pykrmois\artifacts\mois.sqlite"
+$env:MOIS_SQLITE_PATH = "F:\dev\python-mois-api\artifacts\mois.sqlite"
 $env:MOIS_WEB_HOST = "127.0.0.1"
 $env:MOIS_WEB_PORT = "8611"
 python -m mois_debug_ui.backend
@@ -125,7 +125,7 @@ cd packages\mois-debug-ui\frontend
 npm run build
 
 cd ..\..\..
-$env:MOIS_SQLITE_PATH = "F:\dev\pykrmois\artifacts\mois.sqlite"
+$env:MOIS_SQLITE_PATH = "F:\dev\python-mois-api\artifacts\mois.sqlite"
 python -m mois_debug_ui.backend
 ```
 

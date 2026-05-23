@@ -88,7 +88,7 @@ SQLite 적재까지 함께 확인하려면 `MOIS_SQLITE_PATH`를 추가합니다
 
 ```powershell
 $env:MOIS_RUN_ALL_DOWNLOAD_LIVE = "1"
-$env:MOIS_SQLITE_PATH = "F:\dev\pykrmois\artifacts\live-test.sqlite"
+$env:MOIS_SQLITE_PATH = "F:\dev\python-mois-api\artifacts\live-test.sqlite"
 python -m pytest tests\test_all_license_downloads_db.py -m live
 ```
 
@@ -97,7 +97,7 @@ python -m pytest tests\test_all_license_downloads_db.py -m live
 이미 내려받은 파일을 기준으로 전체 재적재를 검증할 때는 운영 스크립트를 사용합니다.
 
 ```powershell
-$env:MOIS_SQLITE_PATH = "F:\dev\pykrmois\artifacts\mois.sqlite"
+$env:MOIS_SQLITE_PATH = "F:\dev\python-mois-api\artifacts\mois.sqlite"
 python -m tools.load_all_localdata_to_sqlite --output-dir artifacts/localdata --replace-slug
 ```
 

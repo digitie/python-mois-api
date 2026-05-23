@@ -132,7 +132,7 @@ with LocalDataFileClient() as files, Session(engine) as session:
 대용량 업종은 `load_hospitals()`처럼 전체 목록을 만드는 방식보다 `iter_hospitals()`로 순회하며 배치 적재하는 방식을 권장합니다. 전체 파일 적재는 운영 스크립트를 사용합니다.
 
 ```powershell
-$env:MOIS_SQLITE_PATH = "F:\dev\pykrmois\artifacts\mois.sqlite"
+$env:MOIS_SQLITE_PATH = "F:\dev\python-mois-api\artifacts\mois.sqlite"
 python -m tools.load_all_localdata_to_sqlite --output-dir artifacts/localdata --replace-slug
 ```
 

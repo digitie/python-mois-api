@@ -861,7 +861,7 @@ def _condition_params(conditions: Mapping[str, Any] | Iterable[Condition] | None
                 operator, actual_value = value
             else:
                 operator, actual_value = ConditionOperator.EQ, value
-            params[f"cond[{field}::{str(operator)}]"] = actual_value
+            params[f"cond[{field}::{operator!s}]"] = actual_value
         return params
     return {condition.param_name(): condition.value for condition in conditions}
 

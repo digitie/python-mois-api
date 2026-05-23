@@ -190,7 +190,7 @@ def test_sqlite_derived_tables_support_fast_browser_queries() -> None:
 
 
 def test_place_master_values_requires_management_number() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="mng_no"):
         place_master_values(PlaceRecord(service_slug="hospitals"))
 
 

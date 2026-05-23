@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -718,17 +719,13 @@ def load_spatialite_extension(connection: Connection) -> bool:
             break
         except Exception:
             continue
-    try:
+    with contextlib.suppress(Exception):
         raw.enable_load_extension(False)
-    except Exception:
-        pass
     if not loaded:
         return False
-    try:
+    with contextlib.suppress(Exception):
         if not _has_table(connection, "spatial_ref_sys"):
             connection.execute(text("SELECT InitSpatialMetaData(1)"))
-    except Exception:
-        pass
     return True
 
 
@@ -1202,12 +1199,10 @@ def _ensure_spatialite_geometry(connection: Connection) -> None:
     spatial_index_table = f"idx_{PlaceMaster.__tablename__}_{SPATIALITE_GEOMETRY_COLUMN}"
     if _has_table(connection, spatial_index_table):
         return
-    try:
+    with contextlib.suppress(Exception):
         connection.execute(
             text(f"SELECT CreateSpatialIndex('{PlaceMaster.__tablename__}', 'geom')")
         )
-    except Exception:
-        pass
 
 
 def _add_geometry_column(connection: Connection, table_name: str, column_name: str) -> None:
@@ -1268,10 +1263,8 @@ def _spatialite_extension_candidates() -> Sequence[str]:
 def _add_dll_directory(path: Path) -> None:
     if not path.exists() or not hasattr(os, "add_dll_directory"):
         return
-    try:
+    with contextlib.suppress(OSError):
         os.add_dll_directory(str(path))
-    except OSError:
-        pass
 
 
 def _dedupe_places(places: Iterable[PlaceRecord]) -> list[PlaceRecord]:

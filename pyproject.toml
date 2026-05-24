@@ -36,6 +36,7 @@ dev = [
   "pytest>=8",
   "ruff>=0.5",
   "mypy>=1.10",
+  "pre-commit>=3.7",
 ]
 web = [
 ]
@@ -52,7 +53,7 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+select = ["E", "F", "I", "UP", "B", "SIM", "PIE", "C4", "PT", "RET", "RSE", "RUF"]
 
 [tool.mypy]
 python_version = "3.11"

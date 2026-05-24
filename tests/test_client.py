@@ -263,7 +263,7 @@ def test_result_codes_are_mapped_to_exceptions() -> None:
 
 def test_invalid_request_parameters_fail_before_network() -> None:
     client = MoisClient("KEY", session=FakeSession(FakeResponse()))
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="num_of_rows"):
         client.request("hospitals", num_of_rows=101)
     with pytest.raises(MoisRequestError):
         MoisClient("KEY", session=FakeSession(FakeResponse(status_code=404))).request("hospitals")

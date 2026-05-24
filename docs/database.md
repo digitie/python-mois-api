@@ -131,6 +131,38 @@ with LocalDataFileClient() as files, Session(engine) as session:
 
 대용량 업종은 `load_hospitals()`처럼 전체 목록을 만드는 방식보다 `iter_hospitals()`로 순회하며 배치 적재하는 방식을 권장합니다. 전체 파일 적재는 운영 스크립트를 사용합니다.
 
+TripMate feature 적재처럼 주기적으로 source DB를 갱신해야 하는 경우에는
+`sync_localdata_source_db()`를 사용합니다. 이 함수는 localdata row를 batch로 UPSERT하고
+`mois_batch_sync_log`를 갱신합니다. 영업중 row는 `iter_open_place_records()`, 폐업/취소 row는
+`iter_closed_place_records()`로 분리해 읽습니다.
+
+```python
+from mois import (
+    LocalDataFileClient,
+    iter_closed_place_records,
+    iter_open_place_records,
+    sync_localdata_source_db,
+)
+
+with Session(engine) as session:
+    sync_localdata_source_db(
+        session,
+        LocalDataFileClient(),
+        service_slugs=("hospitals", "pharmacies", "tourist_accommodations"),
+        sync_kind="localdata_full",
+        batch_size=1000,
+        commit=True,
+    )
+
+    for place in iter_open_place_records(session, service_slugs=("hospitals",)):
+        print(place.mng_no, place.place_name)
+
+    closed_places = list(iter_closed_place_records(session, service_slugs=("hospitals",)))
+```
+
+TripMate의 KRMOIS source DB full update 주기는 1주일 1회입니다. 이 source DB는 폐업/취소 row를
+계속 보존하고, `python-krtour-map`은 영업중 row만 feature로 승격합니다.
+
 ```powershell
 $env:MOIS_SQLITE_PATH = "F:\dev\python-mois-api\artifacts\mois.sqlite"
 python -m tools.load_all_localdata_to_sqlite --output-dir artifacts/localdata --replace-slug

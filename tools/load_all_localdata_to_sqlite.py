@@ -159,7 +159,7 @@ def main() -> None:
                 replace_slug=args.replace_slug,
             )
             total_loaded += loaded
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             failure = {"slug": download.slug, "error": repr(exc)}
             failures.append(failure)
             _write_progress(progress_path, "failed", **failure)

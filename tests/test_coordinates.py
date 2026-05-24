@@ -22,8 +22,8 @@ def test_wgs84_point_uses_lat_lon_order() -> None:
 
 
 def test_wgs84_point_rejects_swapped_or_invalid_order() -> None:
-    with pytest.raises(ValueError):
-        Wgs84Point(lat=126.978, lon=37.5665)
+    with pytest.raises(ValueError, match=r"lon|lat"):
+        Wgs84Point(lon=37.5665, lat=126.978)
 
 
 def test_katec_point_converts_to_wgs84_value_object() -> None:

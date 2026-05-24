@@ -1,13 +1,13 @@
 """주소 지오코딩 검증용 공개 모델과 helper.
 
-`python-mois-api`는 주소 정규화·정/역 지오코딩을 자체 구현하지 않습니다(ADR-001).
+`python-mois-api`는 주소 정규화·정/역 지오코딩을 자체 구현하지 않습니다(ADR-002).
 외부 라이브러리 [`python-kraddr-geo`](https://github.com/digitie/python-kraddr-geo)의
 `AsyncAddressClient` 같은 클라이언트로 후보를 받아온 뒤, 여기에 정의된
 `validate_address_geocoding_probe[_async]`로 MOIS 인허가 원본 좌표·주소와 비교만 합니다.
 신규 보강 필드는 `kraddr-geo`의 `x_extension`을 통해 받습니다.
 
 자세한 통합 방법은 `docs/integration-with-kraddr-geo.md`와
-`docs/decisions.md` ADR-001/002/003을 참조하세요.
+`docs/decisions.md` ADR-002/003/004를 참조하세요.
 """
 
 from __future__ import annotations
@@ -123,7 +123,7 @@ class AddressGeocoder(Protocol):
     """주소 검증에 필요한 최소 지오코더 계약.
 
     동기/비동기 구현을 모두 허용하기 위해 반환 타입을 동기 값 또는 awaitable로 둡니다.
-    `python-kraddr-geo`처럼 async-only 구현은 코루틴을 반환하면 됩니다(ADR-002 참조).
+    `python-kraddr-geo`처럼 async-only 구현은 코루틴을 반환하면 됩니다(ADR-004 참조).
     """
 
     def get_coord(
@@ -228,7 +228,7 @@ async def validate_address_geocoding_probe_async(
 ) -> AddressGeocodingValidationResult:
     """`validate_address_geocoding_probe`의 비동기 버전.
 
-    `python-kraddr-geo`의 `AsyncAddressClient` 같은 async-only 클라이언트(ADR-002)를
+    `python-kraddr-geo`의 `AsyncAddressClient` 같은 async-only 클라이언트(ADR-004)를
     그대로 사용할 수 있도록 코루틴 결과를 `await`합니다.
     """
 

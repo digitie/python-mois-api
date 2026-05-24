@@ -2,7 +2,7 @@
 
 이 문서는 `python-mois-api`(이 저장소)와
 [`python-kraddr-geo`](https://github.com/digitie/python-kraddr-geo)를 함께 사용하는 방법과
-설계 원칙을 정리합니다. 의사결정 배경은 [`docs/decisions.md`](decisions.md)의 ADR-001/002/003에 있습니다.
+설계 원칙을 정리합니다. 의사결정 배경은 [`docs/decisions.md`](decisions.md)의 ADR-002/003/004에 있습니다.
 
 ## 책임 경계
 
@@ -18,7 +18,7 @@
 | 인허가 행의 주소·좌표가 지오코더와 일치하는지 검증 | `python-mois-api` helper + `kraddr-geo` 클라이언트 |
 
 `mois`는 좌표를 **계산하지 않습니다**. 외부 지오코더 결과와 비교만 합니다. 새로 발견된 갭이 있어도
-`kraddr-geo` 쪽 공개 API를 먼저 안정화하는 것이 ADR-001의 우선순위입니다.
+`kraddr-geo` 쪽 공개 API를 먼저 안정화하는 것이 ADR-002의 우선순위입니다.
 
 ## 환경변수 매핑
 
@@ -81,16 +81,16 @@ asyncio.run(verify_hospitals())
 
 핵심 규칙:
 
-- **async 클라이언트는 async helper**. `kraddr-geo`는 ADR-002에서 async-only를 못박았기 때문에
+- **async 클라이언트는 async helper**. `kraddr-geo`는 자기 ADR-002에서 async-only를 못박았기 때문에
   `validate_address_geocoding_probe_async`를 사용합니다. 동기 helper에 코루틴 결과가 들어오면
-  `TypeError`로 즉시 거부합니다.
+  `TypeError`로 즉시 거부합니다(ADR-004).
 - **좌표 순서는 모델로 잠금**. `Wgs84Point`는 `(lat, lon)`, `KatecPoint`는 `(x, y)`. float 네 개를
-  외부로 흘리지 않습니다(ADR-004).
+  외부로 흘리지 않습니다(ADR-005).
 - **CRS는 명시**. `kraddr-geo`는 vworld 호환 응답이라 기본 EPSG:5179(`x_extension.point`)를 씁니다.
   `mois` 원본은 EPSG:5174입니다. `validate_address_geocoding_probe_async(..., geocoder_crs="EPSG:5179")`처럼
   공급자 좌표계를 명시합니다.
 - **응답에 자체 키 추가 금지**. `GeocodingCandidate`는 `kraddr-geo`의 `x_extension` 필드와 1:1 매핑되어야
-  합니다. 새로운 보강 필드는 `kraddr-geo` `x_extension`에 먼저 만든 뒤 가져옵니다(ADR-001).
+  합니다. 새로운 보강 필드는 `kraddr-geo` `x_extension`에 먼저 만든 뒤 가져옵니다(ADR-002).
 
 ## 좌표·주소 보강 파이프라인
 
@@ -101,12 +101,12 @@ asyncio.run(verify_hospitals())
 2. `(service_slug, MNG_NO)` 기준 UPSERT(소프트 삭제 포함).
 3. 좌표가 비거나 EPSG:5174 → WGS84 변환 결과가 의심스러우면 `kraddr-geo`의 `geocode(road_address)`를 호출.
 4. 결과가 `distance_tolerance_m` 안이면 `mois_place_master.lat/lon`, `legal_dong_code`, `road_name_code`,
-   `building_management_number`를 채운다. **원본 EPSG:5174 좌표는 덮어쓰지 않는다**(ADR-004).
+   `building_management_number`를 채운다. **원본 EPSG:5174 좌표는 덮어쓰지 않는다**(ADR-005).
 5. 검증 실패 행은 `mois_batch_sync_log`에 격리하고 다음 배치에서 재시도하지 않는다.
 
 ## 두 저장소의 문서 정책 동기화
 
-`python-kraddr-geo` AGENTS.md의 다음 원칙을 이 저장소도 동일하게 따른다(자세한 내용은 ADR-002):
+`python-kraddr-geo` AGENTS.md의 다음 원칙을 이 저장소도 동일하게 따른다(자세한 내용은 ADR-003):
 
 - 사용자 대상 문서는 한국어로 작성한다(공식 식별자만 원문 유지).
 - 외부 API 관련 작업은 단순 전달용 wrapper 지양 원칙을 먼저 문서/코드에 반영한 뒤 진행한다.

@@ -73,17 +73,18 @@
 
 ## 외부 지오코더 통합
 
-- 주소 정규화·정/역 지오코딩을 `mois` 안에 재구현하지 않습니다. `python-kraddr-geo`(ADR-001)에서 가져오고
-  `validate_address_geocoding_probe[_async]`로 비교만 합니다.
-- `python-kraddr-geo`는 async-only(kraddr-geo ADR-002)입니다. 동기 helper에 코루틴이 들어오면
-  `TypeError`로 거부됩니다. async 클라이언트에는 항상 `validate_address_geocoding_probe_async`를 씁니다.
+- 주소 정규화·정/역 지오코딩을 `mois` 안에 재구현하지 않습니다. `python-kraddr-geo`(ADR-002)에서
+  가져오고 `validate_address_geocoding_probe[_async]`로 비교만 합니다.
+- `python-kraddr-geo`는 async-only(kraddr-geo 자체 ADR-002)입니다. 동기 helper에 코루틴이 들어오면
+  `TypeError`로 거부됩니다. async 클라이언트에는 항상 `validate_address_geocoding_probe_async`를 씁니다
+  (ADR-004).
 - 검증 helper는 좌표계를 명시적으로 받습니다. `kraddr-geo`는 EPSG:5179 기본, `mois` 원본은 EPSG:5174입니다.
   `geocoder_crs="EPSG:5179"`를 빼먹지 않습니다.
 - 보강된 좌표·코드는 `mois_place_master`의 `lat`, `lon`, `legal_dong_code`, `road_name_code`,
   `building_management_number`에 채워 넣되 **원본 EPSG:5174 좌표(`source_x`, `source_y`)는 덮어쓰지
-  않습니다**(ADR-004).
+  않습니다**(ADR-005).
 - 새로운 보강 필드는 우리 응답에 자체 키로 추가하지 말고 `kraddr-geo`의 `x_extension`을 통해 받습니다
-  (kraddr-geo ADR-003 호환).
+  (kraddr-geo 자체 ADR-003 호환).
 
 ## 패키지 경로
 

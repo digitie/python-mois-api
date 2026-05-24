@@ -147,7 +147,7 @@ class Condition:
     value: Any
 
     def param_name(self) -> str:
-        return f"cond[{self.field}::{str(self.operator)}]"
+        return f"cond[{self.field}::{self.operator!s}]"
 
 
 @dataclass(frozen=True, slots=True)

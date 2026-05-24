@@ -134,7 +134,7 @@ def test_live_all_license_downloads_and_optional_sqlite_load() -> None:
             total_records += record_count
             with progress_path.open("a", encoding="utf-8") as progress:
                 progress.write(f"ok {message} records={record_count}\n")
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             failures.append(f"{download.slug}: {exc!r}")
             with progress_path.open("a", encoding="utf-8") as progress:
                 progress.write(f"fail {message} error={exc!r}\n")

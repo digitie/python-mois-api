@@ -15,8 +15,9 @@
 - CP949 CSV, 날짜/시각, 숫자, EPSG:5174 좌표 자동 변환
 - EPSG:5174 좌표를 WGS84 `(lat, lon)`로 변환하고 좌표 값 객체 제공
 - SQLite/SpatiaLite 기반 로컬 DB 적재 모델과 DB 브라우저 서버 제공
+- localdata source DB 주기 갱신 helper와 영업중/폐업·취소 row 조회 iterator 제공
 - 디버그 fixture JSON을 외부 호출 없이 재생하는 pytest 실행 구조 제공
-- 네트워크 없는 단위 테스트와 실제 API 호출 테스트 분리
+- 네트워크 없는 단위 테스트와 실제 호출용 live 테스트 분리
 
 ## 문서 언어 원칙
 
@@ -162,6 +163,40 @@ with Session(engine) as session:
     upsert_places(session, records, commit=True)
 ```
 
+TripMate 계열 feature 적재에서는 이 DB가 KRMOIS raw/localdata source-of-record입니다.
+주기 갱신은 `sync_localdata_source_db()`를 사용하고, feature 승격 대상은
+`iter_open_place_records()`로 읽습니다. 폐업/취소 업체만 따로 확인해야 할 때는
+`iter_closed_place_records()`를 사용합니다.
+
+```python
+from sqlalchemy.orm import Session
+
+from mois import (
+    LocalDataFileClient,
+    iter_closed_place_records,
+    iter_open_place_records,
+    sync_localdata_source_db,
+)
+
+file_client = LocalDataFileClient()
+
+with Session(engine) as session:
+    sync_localdata_source_db(
+        session,
+        file_client,
+        service_slugs=("hospitals", "pharmacies", "tourist_accommodations"),
+        sync_kind="localdata_full",
+        commit=True,
+    )
+
+    open_places = iter_open_place_records(session, service_slugs=("hospitals",))
+    closed_places = iter_closed_place_records(session, service_slugs=("hospitals",))
+```
+
+TripMate의 full source DB 갱신 주기는 1주일 1회로 둡니다. 이 라이브러리는 source DB를
+업데이트하고 폐업/취소 row도 보존하지만, `python-krtour-map`은 영업중 row만 feature로
+승격하고 폐업/취소 feature는 삭제합니다.
+
 이미 내려받은 195개 파일을 모두 적재하려면 운영 스크립트를 사용합니다.
 
 ```powershell
@@ -185,10 +220,10 @@ python -m mois_debug_ui.backend
 정/역 지오코딩, 도로명주소 전자지도 적재는 별도 라이브러리
 [`python-kraddr-geo`](https://github.com/digitie/python-kraddr-geo)가 담당합니다. `mois`는
 `validate_address_geocoding_probe` / `validate_address_geocoding_probe_async`로 양쪽 결과를
-비교만 합니다(ADR-001). 통합 방법은 [`docs/integration-with-kraddr-geo.md`](docs/integration-with-kraddr-geo.md),
+비교만 합니다(ADR-002). 통합 방법은 [`docs/integration-with-kraddr-geo.md`](docs/integration-with-kraddr-geo.md),
 설계 의사결정은 [`docs/decisions.md`](docs/decisions.md)에 있습니다.
 
-디버그 웹 UI는 별도 패키지 `python-mois-debug-ui`로 분리되어 있어(ADR-006), 라이브러리만 쓰는 사용자는
+디버그 웹 UI는 별도 패키지 `python-mois-debug-ui`로 분리되어 있어(ADR-007), 라이브러리만 쓰는 사용자는
 FastAPI/uvicorn/aiosqlite를 받지 않습니다.
 
 ## 문서 목록

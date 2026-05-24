@@ -192,7 +192,7 @@ class LocalDataFileClient:
         raise AttributeError(name)
 
     def _absolute(self, path_or_url: str) -> str:
-        if path_or_url.startswith("http://") or path_or_url.startswith("https://"):
+        if path_or_url.startswith(("http://", "https://")):
             return path_or_url
         return f"{self.base_url}{path_or_url}"
 
@@ -392,7 +392,7 @@ class AsyncLocalDataFileClient:
         raise AttributeError(name)
 
     def _absolute(self, path_or_url: str) -> str:
-        if path_or_url.startswith("http://") or path_or_url.startswith("https://"):
+        if path_or_url.startswith(("http://", "https://")):
             return path_or_url
         return f"{self.base_url}{path_or_url}"
 

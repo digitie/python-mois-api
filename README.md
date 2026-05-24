@@ -179,8 +179,22 @@ python -m mois_debug_ui.backend
 
 기본 API는 `http://127.0.0.1:8611/api`입니다. 프론트엔드는 `packages/mois-debug-ui/frontend`의 Vite 앱이며 개발 URL은 `http://localhost:8610`입니다.
 
+## 책임 경계
+
+`python-mois-api`는 행정안전부 인허가 데이터(OpenAPI + localdata 파일)에 집중합니다. 주소 정규화와
+정/역 지오코딩, 도로명주소 전자지도 적재는 별도 라이브러리
+[`python-kraddr-geo`](https://github.com/digitie/python-kraddr-geo)가 담당합니다. `mois`는
+`validate_address_geocoding_probe` / `validate_address_geocoding_probe_async`로 양쪽 결과를
+비교만 합니다(ADR-001). 통합 방법은 [`docs/integration-with-kraddr-geo.md`](docs/integration-with-kraddr-geo.md),
+설계 의사결정은 [`docs/decisions.md`](docs/decisions.md)에 있습니다.
+
+디버그 웹 UI는 별도 패키지 `python-mois-debug-ui`로 분리되어 있어(ADR-006), 라이브러리만 쓰는 사용자는
+FastAPI/uvicorn/aiosqlite를 받지 않습니다.
+
 ## 문서 목록
 
+- [의사결정 기록(ADR)](docs/decisions.md)
+- [python-kraddr-geo와의 통합 전략](docs/integration-with-kraddr-geo.md)
 - [API 및 파일 다운로드 목록](docs/api-list.md)
 - [증분 OpenAPI 목록과 신청 링크](docs/incremental-openapi.md)
 - [파일 다운로드와 로드 API](docs/file-downloads.md)

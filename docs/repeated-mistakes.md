@@ -70,3 +70,24 @@
 
 - 붙임3의 삭제 항목은 기본 목록에서 제외합니다.
 - 삭제 항목까지 확인해야 할 때만 `list_response_fields(include_deleted=True)`를 사용합니다.
+
+## 외부 지오코더 통합
+
+- 주소 정규화·정/역 지오코딩을 `mois` 안에 재구현하지 않습니다. `python-kraddr-geo`(ADR-001)에서 가져오고
+  `validate_address_geocoding_probe[_async]`로 비교만 합니다.
+- `python-kraddr-geo`는 async-only(kraddr-geo ADR-002)입니다. 동기 helper에 코루틴이 들어오면
+  `TypeError`로 거부됩니다. async 클라이언트에는 항상 `validate_address_geocoding_probe_async`를 씁니다.
+- 검증 helper는 좌표계를 명시적으로 받습니다. `kraddr-geo`는 EPSG:5179 기본, `mois` 원본은 EPSG:5174입니다.
+  `geocoder_crs="EPSG:5179"`를 빼먹지 않습니다.
+- 보강된 좌표·코드는 `mois_place_master`의 `lat`, `lon`, `legal_dong_code`, `road_name_code`,
+  `building_management_number`에 채워 넣되 **원본 EPSG:5174 좌표(`source_x`, `source_y`)는 덮어쓰지
+  않습니다**(ADR-004).
+- 새로운 보강 필드는 우리 응답에 자체 키로 추가하지 말고 `kraddr-geo`의 `x_extension`을 통해 받습니다
+  (kraddr-geo ADR-003 호환).
+
+## 패키지 경로
+
+- `packages/mois-debug-ui/pyproject.toml`의 `pythonpath`에 `../../src` 같은 상위 디렉터리를 넣지 않습니다.
+  분리 패키지는 자기 `src/`만 sys.path에 두고, 상위 mois는 `python-mois-api` dependency로 받습니다.
+- 디버그 UI 정적 자산 경로는 `packages/mois-debug-ui/frontend/dist`(패키지 루트 기준)입니다.
+  `src/mois_debug_ui/frontend/` 같은 다른 위치를 우선 폴백으로 두지 않습니다.

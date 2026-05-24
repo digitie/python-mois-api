@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import os
 import re
 import uuid
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from datetime import date, datetime
+from functools import partial
 from pathlib import Path
 from typing import Annotated, Any, cast
 
@@ -55,13 +58,24 @@ def create_app(
     운영/개발 실행에서는 `MOIS_SQLITE_PATH` 또는 `database_path`를 사용합니다.
     """
 
+    repo = repository or _repository_from_database_path(database_path)
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        try:
+            yield
+        finally:
+            aclose = getattr(repo, "aclose", None)
+            if callable(aclose):
+                await aclose()
+
     app = FastAPI(
         title="mois DB 브라우저",
         description="행정안전부 인허가정보 SQLite/SpatiaLite 적재 결과를 조회합니다.",
         version="0.1.0",
+        lifespan=lifespan,
     )
     _configure_cors(app)
-    repo = repository or _repository_from_database_path(database_path)
 
     def get_repository() -> Any:
         if repo is None:
@@ -532,12 +546,17 @@ async def _call_repository(
     *args: Any,
     **kwargs: Any,
 ) -> Any:
+    """저장소 메서드를 호출합니다.
+
+    저장소가 코루틴 함수를 노출하면 그대로 await하고, 동기 메서드라면 스레드로 위임해
+    이벤트 루프를 차단하지 않습니다(테스트용 동기 fake도 지원).
+    """
+
     repository = repository_factory()
     method = getattr(repository, method_name)
-    result = method(*args, **kwargs)
-    if inspect.isawaitable(result):
-        return await result
-    return result
+    if inspect.iscoroutinefunction(method):
+        return await method(*args, **kwargs)
+    return await asyncio.to_thread(partial(method, *args, **kwargs))
 
 
 def _with_service_application_urls(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -827,7 +846,5 @@ def _configure_cors(app: FastAPI) -> None:
 
 
 def _default_frontend_dist() -> Path:
-    package_dist = Path(__file__).resolve().parents[1] / "frontend" / "dist"
-    if package_dist.exists():
-        return package_dist
-    return Path(__file__).resolve().parents[3] / "frontend" / "dist"
+    package_root = Path(__file__).resolve().parents[3]
+    return package_root / "frontend" / "dist"

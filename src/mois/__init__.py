@@ -60,6 +60,7 @@ from .geocoding import (
     AddressGeocodingValidationResult,
     GeocodingCandidate,
     validate_address_geocoding_probe,
+    validate_address_geocoding_probe_async,
 )
 from .models import (
     BusinessStatusCategory,
@@ -172,4 +173,5 @@ __all__ = [
     "upsert_place",
     "upsert_places",
     "validate_address_geocoding_probe",
+    "validate_address_geocoding_probe_async",
 ]

@@ -8,7 +8,7 @@
 - `mois_place_master`는 검색, 지도, 상태 필터, 주소/코드 연계에 필요한 공통 필드만 둡니다.
 - `mois_place_detail`은 컬럼으로 승격하지 않은 특수 필드와 원본 필드만 SQLite JSON으로 보관합니다.
 - `mois_batch_sync_log`는 파일/API 동기화 진행 상태와 증분 기준 시각을 저장하기 위한 로그 테이블입니다.
-- 좌표는 원본 EPSG:5174 `(x, y)`를 `source_x`, `source_y`에 보존하고, WGS84 `(lon, lat)`와 `geom_wkt`를 별도로 저장합니다.
+- 좌표는 원본 EPSG:5174 `(x, y)`를 `source_x`, `source_y`에 보존하고, WGS84 `(lat, lon)`와 `geom_wkt`를 별도로 저장합니다.
 - SpatiaLite 확장을 로드할 수 있으면 `mois_place_master.geom` 컬럼과 공간 인덱스를 추가합니다.
 - UPSERT 기준은 `(service_slug, mng_no)`입니다. 원본 관리번호가 공백이면 DB 적재용으로만 `missing-mng-no-<sha256>` 대체 키를 만듭니다.
 
@@ -106,7 +106,7 @@ erDiagram
 | `ix_mois_place_master_authority` | `opn_authority_code` |
 | `ix_mois_place_master_legal_dong` | `legal_dong_code` |
 | `ix_mois_place_master_road_name` | `road_name_code` |
-| `ix_mois_place_master_lon_lat` | `(lon, lat)` |
+| `ix_mois_place_master_lat_lon` | `(lat, lon)` |
 | `ix_mois_place_master_subtype` | `(service_slug, subtype_name)` |
 | `ix_mois_place_master_sales_method` | `sales_method_name` |
 
@@ -150,14 +150,14 @@ flowchart TD
 - 빈 문자열은 의미 없는 빈 값이면 `None`으로 보존합니다.
 - 날짜는 `date`, 시각은 KST `datetime`으로 변환합니다.
 - 숫자 필드는 `int` 또는 `float`로 변환합니다.
-- 좌표는 EPSG:5174 `(x, y)` 원본을 보존하고 WGS84 `(lon, lat)`를 추가합니다.
+- 좌표는 EPSG:5174 `(x, y)` 원본을 보존하고 WGS84 `(lat, lon)`를 추가합니다.
 - 폐업/취소 레코드는 삭제하지 않고 상태와 폐업일자를 갱신합니다.
 
 ## 조회 패턴
 
 ### DB 브라우저 목록 조회
 
-`apps/db_browser/backend/app.py`의 `/api/places`는 다음 조건을 조합합니다.
+`packages/mois-debug-ui/src/mois_debug_ui/backend/app.py`의 `/api/places`는 다음 조건을 조합합니다.
 
 - `service_slug`
 - `category`
@@ -168,15 +168,15 @@ flowchart TD
 
 ### 공간 검색
 
-SpatiaLite가 활성화된 DB에서는 `geom` 컬럼을 사용할 수 있습니다. 확장을 사용할 수 없는 환경에서는 `lon`, `lat`의 bounding box 선필터와 Python 거리 계산을 조합합니다.
+SpatiaLite가 활성화된 DB에서는 `geom` 컬럼을 사용할 수 있습니다. 확장을 사용할 수 없는 환경에서는 `lat`, `lon`의 bounding box 선필터와 Python 거리 계산을 조합합니다.
 
 ```sql
 select place_name, road_address
 from mois_place_master
 where service_slug = 'hospitals'
   and is_open = 1
-  and lon between 126.96 and 127.00
-  and lat between 37.55 and 37.58;
+  and lat between 37.55 and 37.58
+  and lon between 126.96 and 127.00;
 ```
 
 ## 고민할 지점

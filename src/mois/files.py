@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import codecs
 import csv
 import io
@@ -20,6 +21,7 @@ from .exceptions import MoisParseError, MoisRequestError
 from .models import Coordinate, LocalDataRecord
 
 DEFAULT_FILE_BASE_URL = "https://file.localdata.go.kr"
+_ITERATION_DONE = object()
 
 
 class LocalDataFileClient:
@@ -149,7 +151,7 @@ class LocalDataFileClient:
     ) -> list[LocalDataRecord]:
         """이미 받은 CSV 파일을 `LocalDataRecord` 목록으로 로드합니다."""
 
-        return list(self.iter_file(path, slug=slug, encoding=encoding))
+        return _load_records_from_path(path, slug=slug, encoding=encoding)
 
     def iter_file(
         self,
@@ -329,28 +331,38 @@ class AsyncLocalDataFileClient:
             for record in iter_records_from_binary(binary_output, slug=slug, encoding=encoding):
                 yield record
 
-    def load_file(
+    async def load_file(
         self,
         path: str | os.PathLike[str],
         *,
         slug: str | None = None,
         encoding: str | None = None,
     ) -> list[LocalDataRecord]:
-        """이미 받은 CSV 파일을 `LocalDataRecord` 목록으로 로드합니다."""
+        """이미 받은 CSV 파일을 비동기로 `LocalDataRecord` 목록으로 로드합니다."""
 
-        return list(self.iter_file(path, slug=slug, encoding=encoding))
+        return await asyncio.to_thread(
+            _load_records_from_path,
+            path,
+            slug=slug,
+            encoding=encoding,
+        )
 
-    def iter_file(
+    async def iter_file(
         self,
         path: str | os.PathLike[str],
         *,
         slug: str | None = None,
         encoding: str | None = None,
-    ) -> Iterator[LocalDataRecord]:
-        """이미 받은 CSV 파일을 `LocalDataRecord`로 한 행씩 순회합니다."""
+    ) -> AsyncIterator[LocalDataRecord]:
+        """이미 받은 CSV 파일을 비동기로 한 행씩 순회합니다."""
 
         with Path(path).open("rb") as source:
-            yield from iter_records_from_binary(source, slug=slug, encoding=encoding)
+            records = iter_records_from_binary(source, slug=slug, encoding=encoding)
+            while True:
+                record = await asyncio.to_thread(_next_record_or_done, records)
+                if record is _ITERATION_DONE:
+                    return
+                yield cast(LocalDataRecord, record)
 
     def __getattr__(self, name: str) -> Any:
         """`await files.load_hospitals()` 같은 비동기 편의 메서드를 제공합니다."""
@@ -440,6 +452,23 @@ def load_records_from_bytes(
     """CSV bytes를 정규화된 객체 목록으로 변환합니다."""
 
     return list(iter_records_from_bytes(content, slug=slug, encoding=encoding))
+
+
+def _load_records_from_path(
+    path: str | os.PathLike[str],
+    *,
+    slug: str | None = None,
+    encoding: str | None = None,
+) -> list[LocalDataRecord]:
+    with Path(path).open("rb") as source:
+        return list(iter_records_from_binary(source, slug=slug, encoding=encoding))
+
+
+def _next_record_or_done(records: Iterator[LocalDataRecord]) -> LocalDataRecord | object:
+    try:
+        return next(records)
+    except StopIteration:
+        return _ITERATION_DONE
 
 
 def iter_records_from_bytes(

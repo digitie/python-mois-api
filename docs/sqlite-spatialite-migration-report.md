@@ -9,7 +9,7 @@
 - 기본 운영 DB는 단일 SQLite 파일입니다.
 - SpatiaLite 확장이 로드되면 `mois_place_master.geom` 공간 컬럼을 함께 사용합니다.
 - 공간 컬럼 갱신은 대용량 파일에서 메모리가 커지지 않도록 rowid 범위 배치로 커밋합니다.
-- SpatiaLite가 없어도 `lon`, `lat`, `geom_wkt`로 조회와 API 응답은 동작합니다.
+- SpatiaLite가 없어도 `lat`, `lon`, `geom_wkt`로 조회와 API 응답은 동작합니다.
 - 반복 조회와 필터에 쓰이는 JSON 필드는 마스터 컬럼으로 승격했습니다.
 - 업종별로만 드문 특수 필드는 `specific_data` JSON에 남겼습니다.
 - API의 `recordData` 응답은 마스터 승격 컬럼과 `specific_data`를 합쳐 재구성합니다.
@@ -31,7 +31,7 @@ Windows 개발 환경에서는 Gaia-SINS의 SpatiaLite 배포본을 사용합니
 ```powershell
 $env:PATH = "F:\dev\spatialite\bin;$env:PATH"
 $env:PROJ_LIB = "F:\dev\spatialite\bin"
-$env:MOIS_SQLITE_PATH = "F:\dev\pykrmois\artifacts\mois.sqlite"
+$env:MOIS_SQLITE_PATH = "F:\dev\python-mois-api\artifacts\mois.sqlite"
 ```
 
 ## 스키마 구조
@@ -44,7 +44,7 @@ $env:MOIS_SQLITE_PATH = "F:\dev\pykrmois\artifacts\mois.sqlite"
 | 상태 | `status_code`, `status_name`, `detail_status_code`, `detail_status_name`, `is_open` |
 | 일자 | `license_date`, `closed_date`, `data_updated_at`, `source_modified_at` |
 | 주소 | `road_address`, `lot_address`, `legal_dong_code`, `road_name_code`, `building_management_number` |
-| 좌표 | `source_x`, `source_y`, `lon`, `lat`, `geom_wkt`, `geom` |
+| 좌표 | `source_x`, `source_y`, `lat`, `lon`, `geom_wkt`, `geom` |
 | 승격 필드 | 업태, 세부업종, 판매 방식, 시설 규모, 의료기관 수치 등 |
 
 `mois_place_detail`은 마스터 컬럼으로 승격하지 않은 필드만 저장합니다.
@@ -103,7 +103,7 @@ DB 브라우저 API 서버를 실행합니다.
 
 ```powershell
 $env:PYTHONPATH = "src"
-python -m apps.db_browser.backend
+python -m mois_debug_ui.backend
 ```
 
 기본 검증은 네트워크 없이 실행합니다.
@@ -122,7 +122,7 @@ python -m mypy src/mois
 |---|---|
 | 전체 파일 재적재 | 195개 파일, 원천 레코드 12,046,780건 처리, 실패 0건 |
 | DB 저장 결과 | `mois_place_master` 11,364,852건, `mois_place_detail` 11,364,852건, 서비스 195개 |
-| 좌표 저장 결과 | `lon`/`lat` 10,432,736건, SpatiaLite `geom` 10,432,736건 |
+| 좌표 저장 결과 | `lat`/`lon` 10,432,736건, SpatiaLite `geom` 10,432,736건 |
 | SpatiaLite 확인 | Windows `mod_spatialite.dll` 로드 성공, `spatialite_version()` 5.1.0 |
 | promoted 컬럼 확인 | `detail_status_code` 11,364,852건, `data_update_type` 11,364,852건, `subtype_name` 9,650,786건 |
 | detail JSON 확인 | `specific_data` 11,364,852건, `raw_data` 11,364,852건, 서비스별 샘플 195개 JSON 파싱 성공 |

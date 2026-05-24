@@ -1,13 +1,13 @@
 # 타입과 좌표 값 객체
 
-`mois`는 외부 프로그램에서 안정적으로 재사용할 수 있도록 공개 enum, 타입 별칭, 좌표 값 객체를 제공합니다. 기존 `Coordinate.x`, `Coordinate.y`, `Coordinate.lon`, `Coordinate.lat` 접근은 그대로 유지합니다.
+`mois`는 외부 프로그램에서 안정적으로 재사용할 수 있도록 공개 enum, 타입 별칭, 좌표 값 객체를 제공합니다. 기존 `Coordinate.x`, `Coordinate.y`, `Coordinate.lat`, `Coordinate.lon` 접근은 그대로 유지합니다.
 
 ## 좌표 순서 원칙
 
 - KATEC/EPSG:5174 좌표는 항상 `(x, y)` 순서입니다.
-- WGS84/EPSG:4326 좌표는 항상 `(lon, lat)` 순서입니다.
-- GeoJSON Position, WKT, SpatiaLite 입력도 WGS84일 때 `(lon, lat)`입니다.
-- 위도/경도라고 말할 때도 코드에서는 `lat, lon` 순서로 넘기지 않습니다.
+- WGS84/EPSG:4326 일반 tuple은 항상 `(lat, lon)` 순서입니다.
+- GeoJSON Position, WKT, SpatiaLite 입력은 표준에 맞춰 경도 먼저, 위도 다음 순서를 사용합니다.
+- 위도/경도라고 말할 때 코드에서도 `lat, lon` 순서로 넘깁니다.
 
 ## 좌표 값 객체
 
@@ -23,27 +23,27 @@ print(katec.as_tuple())  # (x, y)
 print(katec.katec_x, katec.katec_y)
 
 wgs84 = katec.to_wgs84()
-print(wgs84.lon, wgs84.lat)
+print(wgs84.lat, wgs84.lon)
 ```
 
 ### `Wgs84Point`
 
-WGS84 경도/위도 좌표를 표현합니다. 생성자와 tuple 반환 순서는 항상 `(lon, lat)`입니다.
+WGS84 위도/경도 좌표를 표현합니다. 생성자와 tuple 반환 순서는 항상 `(lat, lon)`입니다.
 
 ```python
 from mois import Wgs84Point
 
-point = Wgs84Point(lon=126.978, lat=37.5665)
-print(point.as_tuple())             # (126.978, 37.5665)
-print(point.to_geojson_position())  # (126.978, 37.5665)
+point = Wgs84Point(lat=37.5665, lon=126.978)
+print(point.as_tuple())             # (37.5665, 126.978)
+print(point.to_geojson_position())  # (126.978, 37.5665), GeoJSON 표준 순서
 print(point.to_wkt())               # POINT(126.978 37.5665)
 ```
 
-`lon`은 -180~180, `lat`은 -90~90 범위를 벗어나면 `ValueError`를 발생시킵니다. 위도와 경도를 실수로 바꿔 넣는 경우를 빨리 찾기 위한 장치입니다.
+`lat`은 -90~90, `lon`은 -180~180 범위를 벗어나면 `ValueError`를 발생시킵니다. 위도와 경도를 실수로 바꿔 넣는 경우를 빨리 찾기 위한 장치입니다.
 
 ### `StationCoordinates`
 
-KATEC 원본 좌표와 WGS84 변환 좌표를 함께 담습니다. 기존 `station.katec_x`, `station.katec_y`, `station.lon`, `station.lat` 스타일 접근을 지원하면서 값 객체도 제공합니다.
+KATEC 원본 좌표와 WGS84 변환 좌표를 함께 담습니다. 기존 `station.katec_x`, `station.katec_y`, `station.lat`, `station.lon` 스타일 접근을 지원하면서 값 객체도 제공합니다.
 
 ```python
 from mois import StationCoordinates
@@ -51,23 +51,23 @@ from mois import StationCoordinates
 coords = StationCoordinates.from_katec(199642.716240024, 452606.614384676)
 
 print(coords.katec_x, coords.katec_y)
-print(coords.lon, coords.lat)
+print(coords.lat, coords.lon)
 print(coords.katec_point.as_tuple())  # (x, y)
-print(coords.wgs84_point.as_tuple())  # (lon, lat)
+print(coords.wgs84_point.as_tuple())  # (lat, lon)
 ```
 
 ### `Coordinate`
 
-기존 호환용 객체입니다. `x`, `y`, `lon`, `lat` 필드는 그대로 있고, 새 값 객체 접근자를 추가로 제공합니다.
+기존 호환용 객체입니다. `x`, `y`, `lat`, `lon` 필드는 그대로 있고, 새 값 객체 접근자를 추가로 제공합니다.
 
 ```python
 record = files.load_hospitals()[0]
 coordinate = record.coordinates
 
 print(coordinate.x, coordinate.y)               # 기존 호환
-print(coordinate.lon, coordinate.lat)           # 기존 호환
+print(coordinate.lat, coordinate.lon)           # 위도, 경도 순서
 print(coordinate.katec_point.as_tuple())        # (x, y)
-print(coordinate.wgs84_point.as_tuple())        # (lon, lat)
+print(coordinate.wgs84_point.as_tuple())        # (lat, lon)
 print(coordinate.station_coordinates.to_wkt())  # WGS84 Point WKT
 ```
 
@@ -80,12 +80,12 @@ from mois.coords import (
     station_coordinates_from_katec,
 )
 
-lon, lat = epsg5174_to_wgs84(199642.716240024, 452606.614384676)
+lat, lon = epsg5174_to_wgs84(199642.716240024, 452606.614384676)
 point = epsg5174_to_wgs84_point(199642.716240024, 452606.614384676)
 coords = station_coordinates_from_katec(199642.716240024, 452606.614384676)
 ```
 
-`epsg5174_to_wgs84()`는 기존 호환을 위해 tuple을 반환하지만, 반환 순서는 명확히 `(lon, lat)`입니다.
+`epsg5174_to_wgs84()`는 tuple을 반환하며, 반환 순서는 명확히 `(lat, lon)`입니다.
 
 ## 공개 enum
 

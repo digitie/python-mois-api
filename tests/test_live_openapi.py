@@ -12,9 +12,9 @@ from mois import MoisClient
 
 @pytest.mark.live
 def test_live_hospitals_first_page_sync_and_async() -> None:
-    key = os.getenv("MOIS_SERVICE_KEY")
+    key = os.getenv("DATA_GO_KR_SERVICE_KEY")
     if not key:
-        pytest.skip("MOIS_SERVICE_KEY가 없습니다")
+        pytest.skip("DATA_GO_KR_SERVICE_KEY가 없습니다")
 
     with MoisClient(key, timeout=30.0, max_rps=2.0) as client:
         sync_rows = client.get_hospitals(num_of_rows=1)

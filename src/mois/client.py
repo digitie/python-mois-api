@@ -439,6 +439,20 @@ class AsyncMoisClient:
         self.base_url = base_url.rstrip("/") if base_url else None
         self.closed = False
 
+    @classmethod
+    def from_env(
+        cls,
+        name: str = "DATA_GO_KR_SERVICE_KEY",
+        **kwargs: Any,
+    ) -> AsyncMoisClient:
+        """환경변수에서 서비스키를 읽어 비동기 클라이언트를 만듭니다."""
+
+        try:
+            service_key = os.environ[name]
+        except KeyError as exc:
+            raise ValueError(f"{name} is not set") from exc
+        return cls(service_key, **kwargs)
+
     async def __aenter__(self) -> AsyncMoisClient:
         return self
 

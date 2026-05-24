@@ -15,17 +15,20 @@ def _epsg5174_to_wgs84_transformer() -> Transformer:
 
 
 def epsg5174_to_wgs84(x: float, y: float) -> tuple[float, float]:
-    """Bessel 중부원점TM(EPSG:5174) `(x, y)`를 WGS84 `(lon, lat)`로 변환합니다."""
+    """Bessel 중부원점TM(EPSG:5174) `(x, y)`를 WGS84 `(lat, lon)`로 변환합니다."""
 
-    lon, lat = _epsg5174_to_wgs84_transformer().transform(float(x), float(y))
-    return float(lon), float(lat)
+    transformed_lon, transformed_lat = _epsg5174_to_wgs84_transformer().transform(
+        float(x),
+        float(y),
+    )
+    return float(transformed_lat), float(transformed_lon)
 
 
 def katec_to_wgs84_point(point: KatecPoint) -> Wgs84Point:
-    """KATEC `KatecPoint(x, y)`를 WGS84 `Wgs84Point(lon, lat)`로 변환합니다."""
+    """KATEC `KatecPoint(x, y)`를 WGS84 `Wgs84Point(lat, lon)`로 변환합니다."""
 
-    lon, lat = epsg5174_to_wgs84(point.x, point.y)
-    return Wgs84Point(lon=lon, lat=lat)
+    lat, lon = epsg5174_to_wgs84(point.x, point.y)
+    return Wgs84Point(lat=lat, lon=lon)
 
 
 def epsg5174_to_wgs84_point(x: float, y: float) -> Wgs84Point:

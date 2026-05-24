@@ -11,7 +11,8 @@
 
 ## 문서 작성
 
-- 사용자-facing 문서와 Python 내부 문서(docstring, 공개 API 설명)는 한국어로 작성합니다.
+- 사용자 대상 문서와 Python 내부 문서(docstring, 공개 API 설명)는 한국어로 작성합니다.
+- 패키지명, 함수명, 환경변수, URL, 표준 기술명처럼 코드나 공식 명칭으로 식별해야 하는 값만 원문 표기를 유지합니다.
 - 문서의 파일 위치 정보는 절대 경로가 아니라 프로젝트 기준 상대 경로로 적습니다.
 
 ## 파일 탐색
@@ -36,7 +37,7 @@
 - 배치 동기화에서는 마지막 성공 시각을 별도 로그 테이블에 저장하고 다음 실행의 `GTE` 조건으로 사용합니다.
 - UPSERT 키는 관리번호 단독보다 `(service_slug, MNG_NO)` 조합이 안전합니다.
 - 실제 CSV에는 `MNG_NO`가 공백인 행이 있으므로 원본 `management_number`는 `None`으로 보존하고, DB 적재용 `PlaceRecord.mng_no`에만 `missing-mng-no-<sha256>` 대체 키를 사용합니다.
-- 폐업/취소 데이터는 삭제하지 말고 영업상태와 폐업일자를 갱신하는 soft delete로 처리합니다.
+- 폐업/취소 데이터는 삭제하지 말고 영업상태와 폐업일자를 갱신하는 소프트 삭제로 처리합니다.
 
 ## 파일 다운로드
 
@@ -50,7 +51,7 @@
 - localdata 파일은 UTF-8이 아니라 CP949인 경우가 기본입니다.
 - 빈 문자열을 숫자 0으로 바꾸지 않습니다. 의미 없는 빈 값은 `None`입니다.
 - 좌표는 원본 EPSG:5174 값을 보존하면서 WGS84를 추가합니다. 원본 좌표를 덮어쓰지 않습니다.
-- 좌표 순서는 KATEC/EPSG:5174가 `(x, y)`, WGS84/EPSG:4326이 `(lon, lat)`입니다. helper 이름과 문서에서 순서를 항상 명시합니다.
+- 좌표 순서는 KATEC/EPSG:5174가 `(x, y)`, WGS84/EPSG:4326 일반 tuple이 `(lat, lon)`입니다. WKT/GeoJSON/SpatiaLite처럼 표준이 순서를 요구하는 경우는 별도로 명시합니다.
 - 좌표를 새로 노출할 때 float 네 개만 추가하지 말고 `KatecPoint`, `Wgs84Point`, `StationCoordinates` 값 객체를 함께 제공합니다.
 - 날짜와 시각은 문자열로 방치하지 않습니다. `date`와 KST `datetime`으로 변환합니다.
 
@@ -69,3 +70,25 @@
 
 - 붙임3의 삭제 항목은 기본 목록에서 제외합니다.
 - 삭제 항목까지 확인해야 할 때만 `list_response_fields(include_deleted=True)`를 사용합니다.
+
+## 외부 지오코더 통합
+
+- 주소 정규화·정/역 지오코딩을 `mois` 안에 재구현하지 않습니다. `python-kraddr-geo`(ADR-002)에서
+  가져오고 `validate_address_geocoding_probe[_async]`로 비교만 합니다.
+- `python-kraddr-geo`는 async-only(kraddr-geo 자체 ADR-002)입니다. 동기 helper에 코루틴이 들어오면
+  `TypeError`로 거부됩니다. async 클라이언트에는 항상 `validate_address_geocoding_probe_async`를 씁니다
+  (ADR-004).
+- 검증 helper는 좌표계를 명시적으로 받습니다. `kraddr-geo`는 EPSG:5179 기본, `mois` 원본은 EPSG:5174입니다.
+  `geocoder_crs="EPSG:5179"`를 빼먹지 않습니다.
+- 보강된 좌표·코드는 `mois_place_master`의 `lat`, `lon`, `legal_dong_code`, `road_name_code`,
+  `building_management_number`에 채워 넣되 **원본 EPSG:5174 좌표(`source_x`, `source_y`)는 덮어쓰지
+  않습니다**(ADR-005).
+- 새로운 보강 필드는 우리 응답에 자체 키로 추가하지 말고 `kraddr-geo`의 `x_extension`을 통해 받습니다
+  (kraddr-geo 자체 ADR-003 호환).
+
+## 패키지 경로
+
+- `packages/mois-debug-ui/pyproject.toml`의 `pythonpath`에 `../../src` 같은 상위 디렉터리를 넣지 않습니다.
+  분리 패키지는 자기 `src/`만 sys.path에 두고, 상위 mois는 `python-mois-api` dependency로 받습니다.
+- 디버그 UI 정적 자산 경로는 `packages/mois-debug-ui/frontend/dist`(패키지 루트 기준)입니다.
+  `src/mois_debug_ui/frontend/` 같은 다른 위치를 우선 폴백으로 두지 않습니다.

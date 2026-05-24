@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import asyncio
+from pathlib import Path
+
 import pytest
 
 pytest.importorskip("fastapi")
 
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient  # noqa: E402
+from mois.files import iter_records_from_bytes  # noqa: E402
 
-from apps.db_browser.backend import load_sqlite
-from apps.db_browser.backend.app import create_app
-from mois.files import iter_records_from_bytes
+from mois_debug_ui.backend import load_sqlite  # noqa: E402
+from mois_debug_ui.backend.app import create_app  # noqa: E402
 
 CSV_TEXT = (
     "개방자치단체코드,관리번호,인허가일자,영업상태명,사업장명,"
@@ -94,6 +97,44 @@ class FakeRepository:
         }
 
 
+class AsyncFakeRepository(FakeRepository):
+    async def stats(self) -> dict[str, object]:
+        return super().stats()
+
+    async def services(self) -> list[dict[str, object]]:
+        return super().services()
+
+    async def places(
+        self,
+        *,
+        q: str | None,
+        service_slug: str | None,
+        category: str | None,
+        is_open: bool | None,
+        detail_status_code: str | None,
+        business_type_name: str | None,
+        subtype_name: str | None,
+        sales_method_name: str | None,
+        limit: int,
+        offset: int,
+    ) -> dict[str, object]:
+        return super().places(
+            q=q,
+            service_slug=service_slug,
+            category=category,
+            is_open=is_open,
+            detail_status_code=detail_status_code,
+            business_type_name=business_type_name,
+            subtype_name=subtype_name,
+            sales_method_name=sales_method_name,
+            limit=limit,
+            offset=offset,
+        )
+
+    async def place_detail(self, place_id: str) -> dict[str, object] | None:
+        return super().place_detail(place_id)
+
+
 def test_db_browser_api_with_fake_repository() -> None:
     client = TestClient(create_app(repository=FakeRepository()))
 
@@ -118,6 +159,15 @@ def test_db_browser_api_with_fake_repository() -> None:
     detail = client.get("/api/places/11111111-1111-1111-1111-111111111111").json()
     assert detail["detail"]["specificData"]["SCKBD_CNT"] == 92
     assert client.get("/api/places/22222222-2222-2222-2222-222222222222").status_code == 404
+
+
+def test_db_browser_api_accepts_async_repository() -> None:
+    client = TestClient(create_app(repository=AsyncFakeRepository()))
+
+    assert client.get("/api/stats").json()["total"] == 2
+    assert client.get("/api/places/11111111-1111-1111-1111-111111111111").json()[
+        "placeName"
+    ] == "포레스트병원"
 
 
 def test_db_browser_api_without_database_path_returns_503(
@@ -158,3 +208,29 @@ def test_load_records_to_sqlite_commits_by_batch(monkeypatch: pytest.MonkeyPatch
 def test_load_records_to_sqlite_rejects_invalid_batch_size() -> None:
     with pytest.raises(ValueError, match="batch_size"):
         load_sqlite.load_records_to_sqlite(object(), [], batch_size=0)  # type: ignore[arg-type]
+
+
+def test_async_local_file_load_feeds_db_browser_api(tmp_path: Path) -> None:
+    csv_path = tmp_path / "hospitals.csv"
+    db_path = tmp_path / "mois.sqlite"
+    csv_path.write_bytes(CSV_TEXT.encode("cp949"))
+
+    loaded = asyncio.run(
+        load_sqlite.aload_local_file_to_sqlite(
+            database_path=db_path,
+            file_path=csv_path,
+            slug="hospitals",
+            batch_size=1,
+            replace_slug=True,
+            load_spatialite=False,
+        )
+    )
+
+    assert loaded == 2
+    client = TestClient(create_app(database_path=db_path))
+    stats = client.get("/api/stats").json()
+    assert stats["total"] == 2
+    places = client.get("/api/places", params={"q": "포레스트"}).json()
+    assert places["items"][0]["placeName"] == "포레스트병원"
+    assert places["items"][0]["lat"] > 37
+    assert places["items"][0]["lon"] > 126

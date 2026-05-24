@@ -60,6 +60,14 @@ from .files import (
     load_records_from_text,
 )
 from .fixtures import save_debug_fixture, save_fixture, slugify
+from .geocoding import (
+    AddressGeocoder,
+    AddressGeocodingProbe,
+    AddressGeocodingValidationResult,
+    GeocodingCandidate,
+    validate_address_geocoding_probe,
+    validate_address_geocoding_probe_async,
+)
 from .models import (
     BusinessStatusCategory,
     Condition,
@@ -91,6 +99,9 @@ PROVIDER_NAME = "python-krmois-api"
 
 __all__ = [
     "PROVIDER_NAME",
+    "AddressGeocoder",
+    "AddressGeocodingProbe",
+    "AddressGeocodingValidationResult",
     "AsyncLocalDataFileClient",
     "AsyncMoisClient",
     "Base",
@@ -103,6 +114,7 @@ __all__ = [
     "DebugRun",
     "FileDownload",
     "FileDownloadKind",
+    "GeocodingCandidate",
     "IncrementalOpenApiEndpoint",
     "KatecPoint",
     "LocalDataFileClient",
@@ -172,4 +184,6 @@ __all__ = [
     "sync_localdata_source_db",
     "upsert_place",
     "upsert_places",
+    "validate_address_geocoding_probe",
+    "validate_address_geocoding_probe_async",
 ]

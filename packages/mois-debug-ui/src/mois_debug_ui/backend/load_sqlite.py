@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import os
 from collections.abc import Iterable
 from pathlib import Path
-
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session
 
 from mois import (
     LocalDataRecord,
@@ -19,6 +16,9 @@ from mois import (
     refresh_sqlite_derived_tables,
 )
 from mois.files import iter_records_from_binary
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
 
 
 def sqlite_url(path: str | os.PathLike[str]) -> str:
@@ -29,7 +29,7 @@ def sqlite_url(path: str | os.PathLike[str]) -> str:
     return f"sqlite:///{actual_path.resolve().as_posix()}"
 
 
-def load_download_file_to_sqlite(
+def load_local_file_to_sqlite(
     *,
     database_path: str | os.PathLike[str],
     file_path: str | os.PathLike[str],
@@ -39,7 +39,7 @@ def load_download_file_to_sqlite(
     load_spatialite: bool = True,
     refresh_derived: bool = True,
 ) -> int:
-    """다운로드된 CSV/ZIP 파일 하나를 SQLite DB에 적재합니다."""
+    """로컬 CSV/ZIP 파일 하나를 SQLite DB에 적재합니다."""
 
     engine = create_engine(
         sqlite_url(database_path),
@@ -59,6 +59,30 @@ def load_download_file_to_sqlite(
     if refresh_derived:
         refresh_sqlite_derived_tables(engine)
     return count
+
+
+async def aload_local_file_to_sqlite(
+    *,
+    database_path: str | os.PathLike[str],
+    file_path: str | os.PathLike[str],
+    slug: str,
+    batch_size: int = 1000,
+    replace_slug: bool = False,
+    load_spatialite: bool = True,
+    refresh_derived: bool = True,
+) -> int:
+    """로컬 CSV/ZIP 파일 하나를 asyncio 흐름에서 SQLite DB에 적재합니다."""
+
+    return await asyncio.to_thread(
+        load_local_file_to_sqlite,
+        database_path=database_path,
+        file_path=file_path,
+        slug=slug,
+        batch_size=batch_size,
+        replace_slug=replace_slug,
+        load_spatialite=load_spatialite,
+        refresh_derived=refresh_derived,
+    )
 
 
 def load_records_to_sqlite(
@@ -132,7 +156,7 @@ def main() -> None:
     if not args.database_path:
         parser.error("--database-path 또는 MOIS_SQLITE_PATH가 필요합니다")
 
-    count = load_download_file_to_sqlite(
+    count = load_local_file_to_sqlite(
         database_path=args.database_path,
         file_path=args.file,
         slug=args.slug,

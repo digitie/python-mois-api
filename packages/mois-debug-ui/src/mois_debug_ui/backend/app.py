@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import os
 import re
 import uuid
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from datetime import date, datetime
+from functools import partial
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import case, create_engine, func, or_, select, text
-from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session, sessionmaker
-
 from mois import (
     PlaceCategorySummary,
     PlaceDetail,
@@ -27,6 +27,14 @@ from mois import (
     create_sqlite_schema,
     list_file_downloads,
     list_openapi_services,
+)
+from sqlalchemy import case, create_engine, func, or_, select, text
+from sqlalchemy.engine import Engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
 )
 
 DEFAULT_LIMIT = 50
@@ -50,13 +58,24 @@ def create_app(
     운영/개발 실행에서는 `MOIS_SQLITE_PATH` 또는 `database_path`를 사용합니다.
     """
 
+    repo = repository or _repository_from_database_path(database_path)
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        try:
+            yield
+        finally:
+            aclose = getattr(repo, "aclose", None)
+            if callable(aclose):
+                await aclose()
+
     app = FastAPI(
         title="mois DB 브라우저",
         description="행정안전부 인허가정보 SQLite/SpatiaLite 적재 결과를 조회합니다.",
         version="0.1.0",
+        lifespan=lifespan,
     )
     _configure_cors(app)
-    repo = repository or _repository_from_database_path(database_path)
 
     def get_repository() -> Any:
         if repo is None:
@@ -64,7 +83,7 @@ def create_app(
         return repo
 
     @app.get("/api/health")
-    def health() -> dict[str, Any]:
+    async def health() -> dict[str, Any]:
         configured = repo is not None
         return {
             "ok": True,
@@ -73,21 +92,22 @@ def create_app(
         }
 
     @app.get("/api/stats")
-    def stats() -> dict[str, Any]:
+    async def stats() -> dict[str, Any]:
         try:
-            return get_repository().stats()
+            return cast(dict[str, Any], await _call_repository(get_repository, "stats"))
         except DatabaseNotConfiguredError as exc:
             raise _db_not_configured() from exc
 
     @app.get("/api/services")
-    def services() -> dict[str, Any]:
+    async def services() -> dict[str, Any]:
         try:
-            return {"items": _with_service_application_urls(get_repository().services())}
+            items = await _call_repository(get_repository, "services")
+            return {"items": _with_service_application_urls(items)}
         except DatabaseNotConfiguredError as exc:
             raise _db_not_configured() from exc
 
     @app.get("/api/places")
-    def places(
+    async def places(
         q: Annotated[
             str | None,
             Query(description="사업장명, 주소, 관리번호 검색어"),
@@ -103,30 +123,35 @@ def create_app(
         offset: Annotated[int, Query(ge=0)] = 0,
     ) -> dict[str, Any]:
         try:
-            return get_repository().places(
-                q=q,
-                service_slug=service_slug,
-                category=category,
-                is_open=is_open,
-                detail_status_code=detail_status_code,
-                business_type_name=business_type_name,
-                subtype_name=subtype_name,
-                sales_method_name=sales_method_name,
-                limit=limit,
-                offset=offset,
+            return cast(
+                dict[str, Any],
+                await _call_repository(
+                    get_repository,
+                    "places",
+                    q=q,
+                    service_slug=service_slug,
+                    category=category,
+                    is_open=is_open,
+                    detail_status_code=detail_status_code,
+                    business_type_name=business_type_name,
+                    subtype_name=subtype_name,
+                    sales_method_name=sales_method_name,
+                    limit=limit,
+                    offset=offset,
+                ),
             )
         except DatabaseNotConfiguredError as exc:
             raise _db_not_configured() from exc
 
     @app.get("/api/places/{place_id}")
-    def place_detail(place_id: str) -> dict[str, Any]:
+    async def place_detail(place_id: str) -> dict[str, Any]:
         try:
-            detail = get_repository().place_detail(place_id)
+            detail = await _call_repository(get_repository, "place_detail", place_id)
         except DatabaseNotConfiguredError as exc:
             raise _db_not_configured() from exc
         if detail is None:
             raise HTTPException(status_code=404, detail="인허가 레코드를 찾을 수 없습니다")
-        return detail
+        return cast(dict[str, Any], detail)
 
     dist = Path(frontend_dist) if frontend_dist else _default_frontend_dist()
     if dist.exists():
@@ -134,33 +159,50 @@ def create_app(
     return app
 
 
-class SQLAlchemyPlaceRepository:
-    """SQLAlchemy 세션으로 mois 적재 테이블을 조회합니다."""
+class AsyncSQLAlchemyPlaceRepository:
+    """async SQLAlchemy 세션으로 mois 적재 테이블을 조회합니다."""
 
-    def __init__(self, engine: Engine, *, spatialite_enabled: bool = False) -> None:
-        self._session_factory: Callable[[], Session] = sessionmaker(bind=engine)
+    def __init__(
+        self,
+        engine: AsyncEngine,
+        *,
+        spatialite_enabled: bool = False,
+        summary_enabled: bool = False,
+        search_enabled: bool = False,
+    ) -> None:
+        self._engine = engine
+        self._session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
+            bind=engine,
+            expire_on_commit=False,
+        )
         self._catalog = {download.slug: download for download in list_file_downloads()}
         self.spatialite_enabled = spatialite_enabled
-        self.summary_enabled = _sqlite_table_has_rows(engine, PlaceStatsSummary.__tablename__)
-        self.search_enabled = _sqlite_table_has_rows(engine, "mois_place_search")
+        self.summary_enabled = summary_enabled
+        self.search_enabled = search_enabled
 
-    def stats(self) -> dict[str, Any]:
+    async def stats(self) -> dict[str, Any]:
         if self.summary_enabled:
-            with self._session_factory() as session:
+            async with self._session_factory() as session:
                 stat_values = {
                     str(key): int(value)
-                    for key, value in session.execute(
-                        select(PlaceStatsSummary.key, PlaceStatsSummary.value)
+                    for key, value in (
+                        await session.execute(
+                            select(PlaceStatsSummary.key, PlaceStatsSummary.value)
+                        )
                     )
                 }
-                category_rows = session.execute(
-                    select(PlaceCategorySummary.category, PlaceCategorySummary.total_count)
-                    .order_by(PlaceCategorySummary.total_count.desc())
+                summary_category_rows = (
+                    await session.execute(
+                        select(PlaceCategorySummary.category, PlaceCategorySummary.total_count)
+                        .order_by(PlaceCategorySummary.total_count.desc())
+                    )
                 ).all()
-                service_rows = session.execute(
-                    select(PlaceServiceSummary.service_slug, PlaceServiceSummary.total_count)
-                    .order_by(PlaceServiceSummary.total_count.desc())
-                    .limit(12)
+                summary_service_rows = (
+                    await session.execute(
+                        select(PlaceServiceSummary.service_slug, PlaceServiceSummary.total_count)
+                        .order_by(PlaceServiceSummary.total_count.desc())
+                        .limit(12)
+                    )
                 ).all()
             total = stat_values.get("total", 0)
             open_count = stat_values.get("open", 0)
@@ -172,39 +214,44 @@ class SQLAlchemyPlaceRepository:
                 "serviceCount": stat_values.get("service_count", 0),
                 "categories": [
                     {"category": category or "미분류", "count": int(count)}
-                    for category, count in category_rows
+                    for category, count in summary_category_rows
                 ],
                 "topServices": [
-                    self._service_count_item(str(slug), int(count)) for slug, count in service_rows
+                    self._service_count_item(str(slug), int(count))
+                    for slug, count in summary_service_rows
                 ],
             }
 
-        with self._session_factory() as session:
-            total = _scalar_int(session, select(func.count()).select_from(PlaceMaster))
-            open_count = _scalar_int(
+        async with self._session_factory() as session:
+            total = await _scalar_int(session, select(func.count()).select_from(PlaceMaster))
+            open_count = await _scalar_int(
                 session,
                 select(func.count()).select_from(PlaceMaster).where(PlaceMaster.is_open.is_(True)),
             )
-            with_coordinates = _scalar_int(
+            with_coordinates = await _scalar_int(
                 session,
                 select(func.count())
                 .select_from(PlaceMaster)
-                .where(PlaceMaster.lon.is_not(None), PlaceMaster.lat.is_not(None)),
+                .where(PlaceMaster.lat.is_not(None), PlaceMaster.lon.is_not(None)),
             )
-            service_count = _scalar_int(
+            service_count = await _scalar_int(
                 session,
                 select(func.count(func.distinct(PlaceMaster.service_slug))),
             )
-            category_rows = session.execute(
-                select(PlaceMaster.category, func.count())
-                .group_by(PlaceMaster.category)
-                .order_by(func.count().desc())
+            aggregate_category_rows = (
+                await session.execute(
+                    select(PlaceMaster.category, func.count())
+                    .group_by(PlaceMaster.category)
+                    .order_by(func.count().desc())
+                )
             ).all()
-            service_rows = session.execute(
-                select(PlaceMaster.service_slug, func.count())
-                .group_by(PlaceMaster.service_slug)
-                .order_by(func.count().desc())
-                .limit(12)
+            aggregate_service_rows = (
+                await session.execute(
+                    select(PlaceMaster.service_slug, func.count())
+                    .group_by(PlaceMaster.service_slug)
+                    .order_by(func.count().desc())
+                    .limit(12)
+                )
             ).all()
         return {
             "total": total,
@@ -214,25 +261,28 @@ class SQLAlchemyPlaceRepository:
             "serviceCount": service_count,
             "categories": [
                 {"category": category or "미분류", "count": int(count)}
-                for category, count in category_rows
+                for category, count in aggregate_category_rows
             ],
             "topServices": [
-                self._service_count_item(str(slug), int(count)) for slug, count in service_rows
+                self._service_count_item(str(slug), int(count))
+                for slug, count in aggregate_service_rows
             ],
         }
 
-    def services(self) -> list[dict[str, Any]]:
+    async def services(self) -> list[dict[str, Any]]:
         if self.summary_enabled:
-            with self._session_factory() as session:
-                rows = session.execute(
-                    select(
-                        PlaceServiceSummary.service_slug,
-                        PlaceServiceSummary.category,
-                        PlaceServiceSummary.title,
-                        PlaceServiceSummary.domain_category,
-                        PlaceServiceSummary.total_count,
-                        PlaceServiceSummary.open_count,
-                    ).order_by(PlaceServiceSummary.category, PlaceServiceSummary.title)
+            async with self._session_factory() as session:
+                rows = (
+                    await session.execute(
+                        select(
+                            PlaceServiceSummary.service_slug,
+                            PlaceServiceSummary.category,
+                            PlaceServiceSummary.title,
+                            PlaceServiceSummary.domain_category,
+                            PlaceServiceSummary.total_count,
+                            PlaceServiceSummary.open_count,
+                        ).order_by(PlaceServiceSummary.category, PlaceServiceSummary.title)
+                    )
                 ).all()
             return [
                 self._service_item(
@@ -244,26 +294,28 @@ class SQLAlchemyPlaceRepository:
                     open_count=int(open_count or 0),
                 )
                 for slug, category, title, domain_category, total, open_count in rows
-            ]
+        ]
 
         open_case = case((PlaceMaster.is_open.is_(True), 1), else_=0)
-        with self._session_factory() as session:
-            rows = session.execute(
-                select(
-                    PlaceMaster.service_slug,
-                    PlaceMaster.category,
-                    PlaceMaster.title,
-                    PlaceMaster.domain_category,
-                    func.count(PlaceMaster.place_id),
-                    func.sum(open_case),
+        async with self._session_factory() as session:
+            rows = (
+                await session.execute(
+                    select(
+                        PlaceMaster.service_slug,
+                        PlaceMaster.category,
+                        PlaceMaster.title,
+                        PlaceMaster.domain_category,
+                        func.count(PlaceMaster.place_id),
+                        func.sum(open_case),
+                    )
+                    .group_by(
+                        PlaceMaster.service_slug,
+                        PlaceMaster.category,
+                        PlaceMaster.title,
+                        PlaceMaster.domain_category,
+                    )
+                    .order_by(PlaceMaster.category, PlaceMaster.title)
                 )
-                .group_by(
-                    PlaceMaster.service_slug,
-                    PlaceMaster.category,
-                    PlaceMaster.title,
-                    PlaceMaster.domain_category,
-                )
-                .order_by(PlaceMaster.category, PlaceMaster.title)
             ).all()
         return [
             self._service_item(
@@ -277,7 +329,7 @@ class SQLAlchemyPlaceRepository:
             for slug, category, title, domain_category, total, open_count in rows
         ]
 
-    def places(
+    async def places(
         self,
         *,
         q: str | None,
@@ -293,7 +345,7 @@ class SQLAlchemyPlaceRepository:
     ) -> dict[str, Any]:
         fts_query = _fts_query(q)
         if fts_query and self.search_enabled:
-            return self._places_with_fts(
+            return await self._places_with_fts(
                 fts_query=fts_query,
                 service_slug=service_slug,
                 category=category,
@@ -316,17 +368,19 @@ class SQLAlchemyPlaceRepository:
             subtype_name=subtype_name,
             sales_method_name=sales_method_name,
         )
-        with self._session_factory() as session:
-            total = _scalar_int(
+        async with self._session_factory() as session:
+            total = await _scalar_int(
                 session,
                 select(func.count()).select_from(PlaceMaster).where(*filters),
             )
-            rows = session.scalars(
-                select(PlaceMaster)
-                .where(*filters)
-                .order_by(PlaceMaster.updated_at.desc(), PlaceMaster.place_name)
-                .limit(limit)
-                .offset(offset)
+            rows = (
+                await session.scalars(
+                    select(PlaceMaster)
+                    .where(*filters)
+                    .order_by(PlaceMaster.updated_at.desc(), PlaceMaster.place_name)
+                    .limit(limit)
+                    .offset(offset)
+                )
             ).all()
         return {
             "items": [_place_summary(row) for row in rows],
@@ -335,7 +389,7 @@ class SQLAlchemyPlaceRepository:
             "offset": offset,
         }
 
-    def _places_with_fts(
+    async def _places_with_fts(
         self,
         *,
         fts_query: str,
@@ -370,27 +424,29 @@ class SQLAlchemyPlaceRepository:
             FROM mois_place_master AS m
             JOIN mois_place_search ON mois_place_search.place_id = m.place_id
         """
-        with self._session_factory() as session:
+        async with self._session_factory() as session:
             total = int(
-                session.scalar(
+                await session.scalar(
                     text(f"SELECT count(*) {from_clause} WHERE {where_clause}"),
                     params,
                 )
                 or 0
             )
-            rows = session.scalars(
-                select(PlaceMaster).from_statement(
-                    text(
-                        f"""
-                        SELECT m.*
-                          {from_clause}
-                         WHERE {where_clause}
-                         ORDER BY m.updated_at DESC, m.place_name
-                         LIMIT :limit OFFSET :offset
-                        """
-                    )
-                ),
-                params,
+            rows = (
+                await session.scalars(
+                    select(PlaceMaster).from_statement(
+                        text(
+                            f"""
+                            SELECT m.*
+                              {from_clause}
+                             WHERE {where_clause}
+                             ORDER BY m.updated_at DESC, m.place_name
+                             LIMIT :limit OFFSET :offset
+                            """
+                        )
+                    ),
+                    params,
+                )
             ).all()
         return {
             "items": [_place_summary(row) for row in rows],
@@ -399,16 +455,16 @@ class SQLAlchemyPlaceRepository:
             "offset": offset,
         }
 
-    def place_detail(self, place_id: str) -> dict[str, Any] | None:
+    async def place_detail(self, place_id: str) -> dict[str, Any] | None:
         try:
             actual_place_id = uuid.UUID(place_id)
         except ValueError:
             return None
-        with self._session_factory() as session:
-            master = session.get(PlaceMaster, actual_place_id)
+        async with self._session_factory() as session:
+            master = await session.get(PlaceMaster, actual_place_id)
             if master is None:
                 return None
-            detail = session.get(PlaceDetail, actual_place_id)
+            detail = await session.get(PlaceDetail, actual_place_id)
         payload = _place_summary(master)
         payload["detail"] = {
             "specificData": detail.specific_data if detail else {},
@@ -448,19 +504,59 @@ class SQLAlchemyPlaceRepository:
             "downloadFunction": f"files.iter_{service_slug}()",
         }
 
+    async def aclose(self) -> None:
+        """앱 종료 시 async SQLAlchemy 엔진을 정리합니다."""
+
+        await self._engine.dispose()
+
 
 def _repository_from_database_path(
     database_path: str | os.PathLike[str] | None,
-) -> SQLAlchemyPlaceRepository | None:
+) -> AsyncSQLAlchemyPlaceRepository | None:
     raw_path = database_path or os.getenv("MOIS_SQLITE_PATH")
     if not raw_path:
         return None
     actual_path = Path(raw_path)
     actual_path.parent.mkdir(parents=True, exist_ok=True)
-    url = f"sqlite:///{actual_path.resolve().as_posix()}"
-    engine = create_engine(url, pool_pre_ping=True, json_serializer=compact_json_dumps)
-    spatialite_enabled = create_sqlite_schema(engine)
-    return SQLAlchemyPlaceRepository(engine, spatialite_enabled=spatialite_enabled)
+    sync_url = f"sqlite:///{actual_path.resolve().as_posix()}"
+    async_url = f"sqlite+aiosqlite:///{actual_path.resolve().as_posix()}"
+    sync_engine = create_engine(sync_url, pool_pre_ping=True, json_serializer=compact_json_dumps)
+    try:
+        spatialite_enabled = create_sqlite_schema(sync_engine)
+        summary_enabled = _sqlite_table_has_rows(sync_engine, PlaceStatsSummary.__tablename__)
+        search_enabled = _sqlite_table_has_rows(sync_engine, "mois_place_search")
+    finally:
+        sync_engine.dispose()
+    async_engine = create_async_engine(
+        async_url,
+        pool_pre_ping=True,
+        json_serializer=compact_json_dumps,
+    )
+    return AsyncSQLAlchemyPlaceRepository(
+        async_engine,
+        spatialite_enabled=spatialite_enabled,
+        summary_enabled=summary_enabled,
+        search_enabled=search_enabled,
+    )
+
+
+async def _call_repository(
+    repository_factory: Callable[[], Any],
+    method_name: str,
+    *args: Any,
+    **kwargs: Any,
+) -> Any:
+    """저장소 메서드를 호출합니다.
+
+    저장소가 코루틴 함수를 노출하면 그대로 await하고, 동기 메서드라면 스레드로 위임해
+    이벤트 루프를 차단하지 않습니다(테스트용 동기 fake도 지원).
+    """
+
+    repository = repository_factory()
+    method = getattr(repository, method_name)
+    if inspect.iscoroutinefunction(method):
+        return await method(*args, **kwargs)
+    return await asyncio.to_thread(partial(method, *args, **kwargs))
 
 
 def _with_service_application_urls(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -638,8 +734,8 @@ def _place_summary(place: PlaceMaster) -> dict[str, Any]:
         "buildingManagementNumber": place.building_management_number,
         "sourceX": place.source_x,
         "sourceY": place.source_y,
-        "lon": place.lon,
         "lat": place.lat,
+        "lon": place.lon,
         "dataUpdatedAt": _json_value(place.data_updated_at),
         "sourceModifiedAt": _json_value(place.source_modified_at),
         "updatedAt": _json_value(place.updated_at),
@@ -670,8 +766,8 @@ def _record_data(place: PlaceMaster, detail: PlaceDetail | None) -> dict[str, An
         "DAT_UPDT_PNT": _json_value(place.data_updated_at),
         "CRD_INFO_X": place.source_x,
         "CRD_INFO_Y": place.source_y,
-        "WGS84_LON": place.lon,
         "WGS84_LAT": place.lat,
+        "WGS84_LON": place.lon,
         "TCBIZ_BGNG_YMD": _json_value(place.temporary_business_start_date),
         "TCBIZ_END_YMD": _json_value(place.temporary_business_end_date),
         "ROBIZ_YMD": _json_value(place.reopen_date),
@@ -706,8 +802,8 @@ def _record_data(place: PlaceMaster, detail: PlaceDetail | None) -> dict[str, An
     return {**compact_promoted, **detail.specific_data}
 
 
-def _scalar_int(session: Session, statement: Any) -> int:
-    return int(session.scalar(statement) or 0)
+async def _scalar_int(session: AsyncSession, statement: Any) -> int:
+    return int(await session.scalar(statement) or 0)
 
 
 def _json_value(value: date | datetime | None) -> str | None:
@@ -736,7 +832,7 @@ def _configure_cors(app: FastAPI) -> None:
         origin.strip()
         for origin in os.getenv(
             "MOIS_WEB_CORS_ORIGINS",
-            "http://localhost:5173,http://127.0.0.1:5173",
+            "http://localhost:8610,http://127.0.0.1:8610",
         ).split(",")
         if origin.strip()
     ]
@@ -750,4 +846,5 @@ def _configure_cors(app: FastAPI) -> None:
 
 
 def _default_frontend_dist() -> Path:
-    return Path(__file__).resolve().parents[1] / "frontend" / "dist"
+    package_root = Path(__file__).resolve().parents[3]
+    return package_root / "frontend" / "dist"

@@ -54,8 +54,8 @@ def test_all_license_downloads_can_parse_and_prepare_db_models_without_network()
         assert record.management_number == f"{download.slug}-MNG-1"
         assert record.coordinates is not None
         assert record.coordinates.wgs84_point.as_tuple() == (
-            record.coordinates.lon,
             record.coordinates.lat,
+            record.coordinates.lon,
         )
 
         place = record_to_place_record(record)

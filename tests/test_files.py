@@ -42,8 +42,8 @@ def test_load_records_from_text_converts_common_python_types() -> None:
     assert 37.57 < record.coordinates.lat < 37.58
     assert record.coordinates.katec_point.x == record.coordinates.katec_x
     assert record.coordinates.wgs84_point.as_tuple() == (
-        record.coordinates.lon,
         record.coordinates.lat,
+        record.coordinates.lon,
     )
     assert record.data["WGS84_LON"] == record.coordinates.lon
 

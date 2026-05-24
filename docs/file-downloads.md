@@ -15,8 +15,8 @@ with LocalDataFileClient() as files:
 first = records[0]
 print(first.business_name)
 print(first.license_date)
-print(first.coordinates.lon, first.coordinates.lat)
-print(first.coordinates.wgs84_point.as_tuple())  # (lon, lat)
+print(first.coordinates.lat, first.coordinates.lon)
+print(first.coordinates.wgs84_point.as_tuple())  # (lat, lon)
 ```
 
 대용량 업종은 전체 목록을 메모리에 올리는 `load()`보다 스트리밍 API를 사용합니다.
@@ -40,7 +40,14 @@ async def main():
         records = await files.load("hospitals")
         print(records[0].business_name)
 
+        local_records = await files.load_file("artifacts/localdata/hospitals_info.bin", slug="hospitals")
+        print(local_records[0].management_number)
+
         async for record in files.iter_hospitals():
+            print(record.management_number, record.business_name)
+            break
+
+        async for record in files.iter_file("artifacts/localdata/hospitals_info.bin", slug="hospitals"):
             print(record.management_number, record.business_name)
             break
 
@@ -64,10 +71,10 @@ with LocalDataFileClient() as files:
 | `인허가일자`, `폐업일자` 등 일자 | `datetime.date` |
 | `데이터갱신시점`, `최종수정시점` | KST timezone-aware `datetime.datetime` |
 | `NUMBER` 필드와 면적/수량 계열 | `int` 또는 `float` |
-| `좌표정보(X/Y)` | 원본 `CRD_INFO_X/Y` float + `WGS84_LON/LAT` + `Coordinate`, `KatecPoint`, `Wgs84Point` 값 객체 |
+| `좌표정보(X/Y)` | 원본 `CRD_INFO_X/Y` float + `WGS84_LAT/LON` + `Coordinate`, `KatecPoint`, `Wgs84Point` 값 객체 |
 | 빈 문자열/공백 | `None` |
 
-좌표 순서는 KATEC/EPSG:5174가 `(x, y)`, WGS84/EPSG:4326이 `(lon, lat)`입니다. 자세한 타입은 [타입과 좌표 값 객체](types-and-coordinates.md)를 봅니다.
+좌표 순서는 KATEC/EPSG:5174가 `(x, y)`, WGS84/EPSG:4326 일반 tuple이 `(lat, lon)`입니다. 자세한 타입은 [타입과 좌표 값 객체](types-and-coordinates.md)를 봅니다.
 
 ## 전체 다운로드 함수 목록
 

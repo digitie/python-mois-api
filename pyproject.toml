@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "python-mois-api"
 version = "0.1.0"
-description = "Python client for Korean MOIS local license OpenAPI and localdata file downloads."
+description = "행정안전부 지방행정 인허가정보 OpenAPI와 localdata 파일 다운로드용 Python 클라이언트."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -39,8 +39,6 @@ dev = [
   "pre-commit>=3.7",
 ]
 web = [
-  "fastapi>=0.115",
-  "uvicorn[standard]>=0.30",
 ]
 
 [tool.setuptools.packages.find]
@@ -63,9 +61,9 @@ strict = true
 warn_unused_ignores = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["src"]
+testpaths = ["tests", "packages/mois-debug-ui/tests"]
+pythonpath = ["src", "packages/mois-debug-ui/src"]
 addopts = "-ra"
 markers = [
-  "live: real network tests that require DATA_GO_KR_SERVICE_KEY",
+  "live: DATA_GO_KR_SERVICE_KEY가 필요한 실제 네트워크 호출 테스트",
 ]

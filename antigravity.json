@@ -25,7 +25,7 @@
         "serve",
         "--mcp"
       ],
-      "cwd": "F:\\dev\\mois-antigravity"
+      "cwd": "F:\\dev\\python-mois-api-antigravity"
     }
   }
 }

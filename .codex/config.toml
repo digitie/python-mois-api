@@ -2,7 +2,7 @@
 enabled = true
 command = "npx"
 args = ["-y", "@colbymchenry/codegraph", "serve", "--mcp"]
-cwd = "F:\\dev\\mois-codex"
+cwd = "F:\\dev\\python-mois-api-codex"
 
 [mcp_servers.playwright]
 command = "npx"

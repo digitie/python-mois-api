@@ -65,6 +65,7 @@ from .geocoding import (
     AddressGeocodingProbe,
     AddressGeocodingValidationResult,
     GeocodingCandidate,
+    GeocodingCandidateLike,
     validate_address_geocoding_probe,
     validate_address_geocoding_probe_async,
 )
@@ -115,6 +116,7 @@ __all__ = [
     "FileDownload",
     "FileDownloadKind",
     "GeocodingCandidate",
+    "GeocodingCandidateLike",
     "IncrementalOpenApiEndpoint",
     "KatecPoint",
     "LocalDataFileClient",

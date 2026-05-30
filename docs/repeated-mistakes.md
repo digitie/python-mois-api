@@ -85,6 +85,10 @@
   않습니다**(ADR-005).
 - 새로운 보강 필드는 우리 응답에 자체 키로 추가하지 말고 `kraddr-geo`의 `x_extension`을 통해 받습니다
   (kraddr-geo 자체 ADR-003 호환).
+- `python-kraddr-base`(`kraddr.base.PlaceCoordinate`, `Address`, `LatLon`, `JibunAddress`,
+  `RoadNameAddress`)를 import 하지 않습니다(ADR-009). 외부 지오코더가 그런 값 객체를 반환하면
+  호출자가 dict 또는 `GeocodingCandidate`로 변환해 전달합니다. `_candidate_from_any`는 임의 객체
+  duck typing을 더 이상 받지 않고 `TypeError`를 던집니다.
 
 ## 패키지 경로
 

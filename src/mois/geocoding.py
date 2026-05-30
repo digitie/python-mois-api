@@ -6,8 +6,12 @@
 `validate_address_geocoding_probe[_async]`로 MOIS 인허가 원본 좌표·주소와 비교만 합니다.
 신규 보강 필드는 `kraddr-geo`의 `x_extension`을 통해 받습니다.
 
+`python-kraddr-base`(`kraddr.base.PlaceCoordinate`, `Address`, `LatLon` 등)에는
+의존하지 않습니다. 입력 타입은 `GeocodingCandidate` 또는 dict-like `Mapping[str, Any]`로
+제한합니다(ADR-009).
+
 자세한 통합 방법은 `docs/integration-with-kraddr-geo.md`와
-`docs/decisions.md` ADR-002/003/004를 참조하세요.
+`docs/decisions.md` ADR-002/003/004/009를 참조하세요.
 """
 
 from __future__ import annotations
@@ -119,17 +123,31 @@ class AddressGeocodingValidationResult(BaseModel):
     within_tolerance: bool = False
 
 
+GeocodingCandidateLike = GeocodingCandidate | Mapping[str, Any]
+"""지오코더가 반환할 수 있는 후보 타입.
+
+`python-kraddr-base`의 `PlaceCoordinate`/`Address`처럼 mois 외부에서 정의된 값 객체는
+직접 받지 않습니다(ADR-009). 외부 라이브러리 결과를 넘기려면 dict 또는
+`GeocodingCandidate`로 변환해 전달해 주세요.
+"""
+
+
 class AddressGeocoder(Protocol):
     """주소 검증에 필요한 최소 지오코더 계약.
 
     동기/비동기 구현을 모두 허용하기 위해 반환 타입을 동기 값 또는 awaitable로 둡니다.
     `python-kraddr-geo`처럼 async-only 구현은 코루틴을 반환하면 됩니다(ADR-004 참조).
+    반환값은 `GeocodingCandidate` 또는 `Mapping[str, Any]`로 한정합니다. `python-kraddr-base`
+    값 객체를 자동으로 받지 않습니다(ADR-009).
     """
 
     def get_coord(
         self,
         request: Mapping[str, Any],
-    ) -> Sequence[Any] | Awaitable[Sequence[Any]]:
+    ) -> (
+        Sequence[GeocodingCandidateLike]
+        | Awaitable[Sequence[GeocodingCandidateLike]]
+    ):
         """주소 문자열을 좌표 후보로 변환합니다."""
         ...
 
@@ -139,7 +157,11 @@ class AddressGeocoder(Protocol):
         x: float,
         y: float,
         max_distance_m: float | None = None,
-    ) -> Any | None | Awaitable[Any | None]:
+    ) -> (
+        GeocodingCandidateLike
+        | None
+        | Awaitable[GeocodingCandidateLike | None]
+    ):
         """지정 좌표 주변의 가장 가까운 도로명주소 후보를 반환합니다."""
         ...
 
@@ -352,13 +374,27 @@ def _input_xy(
 
 
 def _candidate_from_any(
-    value: Any,
+    value: GeocodingCandidate | Mapping[str, Any],
     *,
     default_crs: CoordinateCrs,
     fallback_x: float | None = None,
     fallback_y: float | None = None,
 ) -> GeocodingCandidate:
-    raw = dict(value) if isinstance(value, Mapping) else _public_attrs(value)
+    """지오코더 결과를 `GeocodingCandidate`로 정규화합니다.
+
+    `python-kraddr-base`의 `PlaceCoordinate`/`Address` 같은 외부 값 객체를 자동으로 흡수하지
+    않도록, 입력은 명시적으로 `GeocodingCandidate` 또는 dict-like `Mapping[str, Any]`만
+    허용합니다(ADR-009). 외부 값 객체를 넘기려면 호출자가 직접 dict으로 변환해 주세요.
+    """
+
+    if isinstance(value, GeocodingCandidate):
+        return value
+    if not isinstance(value, Mapping):
+        raise TypeError(
+            "지오코딩 후보는 GeocodingCandidate 또는 Mapping[str, Any]여야 합니다. "
+            "외부 값 객체는 호출자가 dict으로 변환해 전달합니다.",
+        )
+    raw = dict(value)
     x = raw.get("x", fallback_x)
     y = raw.get("y", fallback_y)
     if x is None or y is None:
@@ -368,7 +404,7 @@ def _candidate_from_any(
         y=float(y),
         crs=raw.get("crs") or default_crs,
         road_address=raw.get("road_address"),
-        lot_address=raw.get("lot_address") or raw.get("parcel_address"),
+        lot_address=raw.get("lot_address"),
         postal_code=raw.get("postal_code"),
         legal_dong_code=raw.get("legal_dong_code"),
         road_name_code=raw.get("road_name_code"),
@@ -378,26 +414,6 @@ def _candidate_from_any(
         distance_m=raw.get("distance_m"),
         raw=dict(raw.get("raw") or {}),
     )
-
-
-def _public_attrs(value: Any) -> dict[str, Any]:
-    keys = (
-        "x",
-        "y",
-        "crs",
-        "road_address",
-        "lot_address",
-        "parcel_address",
-        "postal_code",
-        "legal_dong_code",
-        "road_name_code",
-        "building_management_number",
-        "building_name",
-        "source",
-        "distance_m",
-        "raw",
-    )
-    return {key: getattr(value, key) for key in keys if hasattr(value, key)}
 
 
 @lru_cache(maxsize=16)

@@ -131,3 +131,34 @@ aiosqlite 등 운영 의존성을 받지 않는다.
 
 UPSERT 키는 `(service_slug, MNG_NO)`이고, `MNG_NO`가 비어 있는 행은 `missing-mng-no-<sha256>`로 대체한다
 (`docs/repeated-mistakes.md`).
+
+---
+
+## ADR-009 — `python-kraddr-base`에 의존하지 않는다
+
+- **일시**: 2026-05-27
+- **상태**: 채택
+
+`python-mois-api`는 `python-kraddr-base`(`kraddr.base` 패키지)에 직접 의존하지 않는다.
+즉, `pyproject.toml`에 dependency를 추가하지 않고, 소스 코드 어디에서도 `from kraddr.base import …`
+또는 `import kraddr.base`를 작성하지 않는다. `PlaceCoordinate`, `Address`, `LatLon`, `JibunAddress`,
+`RoadNameAddress` 같은 `kraddr.base` 값 객체를 인자/반환 타입으로 받지 않는다.
+
+이유:
+
+- `python-kraddr-base`는 GPL-3.0-or-later 라이선스다. `python-mois-api`는 MIT이므로 의존을 추가하면
+  배포 시 라이선스 제약이 함께 따라온다. wrapper 금지 원칙(ADR-003)과도 충돌한다.
+- `mois`가 노출해야 하는 값 객체는 카탈로그·인허가 도메인에 특화된 것뿐이다(`KatecPoint`,
+  `Wgs84Point`, `StationCoordinates`, `Coordinate`, `LocalDataRecord`, `PlaceRecord`,
+  `AddressGeocodingProbe`, `GeocodingCandidate`). 외부 도메인 모델을 재노출하면 두 곳에서 갱신해야
+  하는 비용이 생긴다.
+- `python-kraddr-geo`(ADR-002)와 통합할 때는 dict 또는 `GeocodingCandidate`로 변환된 결과를 받는다.
+  자세한 인터페이스는 `docs/integration-with-kraddr-geo.md`에 있다.
+
+이 결정이 코드에 반영되는 방식:
+
+- `AddressGeocoder` Protocol은 후보 타입을 `GeocodingCandidate | Mapping[str, Any]`로 좁힌다.
+  임의 객체에 대해 `getattr(obj, "x")` 등을 시도하는 duck typing 경로(`_public_attrs`)는 제거됐다.
+- `_candidate_from_any`는 `GeocodingCandidate` 또는 `Mapping`이 아닌 입력에 대해 `TypeError`를 던진다.
+- `tests/test_no_kraddr_base.py`가 `src/mois/` 전체에 `kraddr.base` 임포트가 없는지 회귀 방지로
+  검증한다.

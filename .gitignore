@@ -27,3 +27,4 @@ artifacts/
 *.sqlite3
 *.log
 node_modules/
+.codegraph/

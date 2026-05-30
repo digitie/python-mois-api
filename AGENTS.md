@@ -38,6 +38,7 @@ PC 개발은 **WSL ext4** 위에서 수행한다. NTFS 마운트에서 직접 `g
   절대경로로 참조한다.
 - **카피 정책**: 작업이 완료되면 ext4 → NTFS의 프로젝트 디렉토리로 카피한다. Git은 ext4 쪽이
   source of truth.
+- **에이전트별 고정 worktree**: ChatGPT Codex는 `F:\dev\mois-codex`, Claude Code는 `F:\dev\mois-claude`, Google Antigravity 2.0은 `F:\dev\mois-antigravity`를 사용한다. 작업마다 브랜치만 새로 만들고, CodeGraph는 worktree마다 1회 `codegraph init -i` 후 `codegraph sync`로 유지한다(ADR-010).
 
 작업 전에 반드시 다음을 읽는다:
 
@@ -88,6 +89,11 @@ PC 개발은 **WSL ext4** 위에서 수행한다. NTFS 마운트에서 직접 `g
     `@pytest.mark.live`로 분리.
 12. **전체 flat table 금지** — 195개 업종의 특수 칼럼을 하나의 flat table에 모두 펼치지 않는다. 공통
     필드는 마스터, 특수 필드는 JSON(ADR-008).
+13. **`python-kraddr-base` 의존 금지** — `pyproject.toml`에 `python-kraddr-base`를 추가하지 않고,
+    소스에서 `from kraddr.base import …` / `import kraddr.base`를 작성하지 않는다. `PlaceCoordinate`,
+    `Address`, `LatLon`, `JibunAddress`, `RoadNameAddress` 같은 `kraddr.base` 값 객체를 인자/반환
+    타입으로 받지 않는다. 외부 라이브러리 결과는 `GeocodingCandidate` 또는 dict으로 변환해 전달한다
+    (ADR-009).
 
 ## 제공자 API 사용 원칙
 

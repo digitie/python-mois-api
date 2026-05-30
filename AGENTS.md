@@ -38,7 +38,7 @@ PC 개발은 **WSL ext4** 위에서 수행한다. NTFS 마운트에서 직접 `g
   절대경로로 참조한다.
 - **카피 정책**: 작업이 완료되면 ext4 → NTFS의 프로젝트 디렉토리로 카피한다. Git은 ext4 쪽이
   source of truth.
-- **에이전트별 고정 worktree**: ChatGPT Codex는 `F:\dev\mois-codex`, Claude Code는 `F:\dev\mois-claude`, Google Antigravity 2.0은 `F:\dev\mois-antigravity`를 사용한다. 작업마다 브랜치만 새로 만들고, CodeGraph는 worktree마다 1회 `codegraph init -i` 후 `codegraph sync`로 유지한다(ADR-010).
+- **에이전트별 고정 worktree**: ChatGPT Codex는 `F:\dev\python-mois-api-codex`, Claude Code는 `F:\dev\python-mois-api-claude`, Google Antigravity 2.0은 `F:\dev\python-mois-api-antigravity`를 사용한다. 작업마다 브랜치만 새로 만들고, CodeGraph는 worktree마다 1회 `codegraph init -i` 후 `codegraph sync`로 유지한다(ADR-010).
 
 작업 전에 반드시 다음을 읽는다:
 

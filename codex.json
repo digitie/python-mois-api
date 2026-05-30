@@ -25,7 +25,7 @@
         "serve",
         "--mcp"
       ],
-      "cwd": "F:\\dev\\mois-codex"
+      "cwd": "F:\\dev\\python-mois-api-codex"
     }
   }
 }

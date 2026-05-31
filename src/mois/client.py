@@ -111,8 +111,13 @@ class MoisClient:
         num_of_rows: int = 100,
         conditions: Mapping[str, Any] | Iterable[Condition] | None = None,
         params: Mapping[str, Any] | None = None,
+        org_code: str | None = None,
     ) -> MoisResponse:
-        """업종 slug와 구분(info/history)으로 한 페이지를 호출합니다."""
+        """업종 slug와 구분(info/history)으로 한 페이지를 호출합니다.
+
+        `org_code`는 개방자치단체코드(opnSfTeamCode) 7자리입니다.
+        예: 서울 3610000, 부산 3620000, 경기 3710000.
+        """
 
         url, request_params, kind_value = _build_openapi_request(
             self.service_key,
@@ -123,6 +128,7 @@ class MoisClient:
             num_of_rows=num_of_rows,
             conditions=conditions,
             params=params,
+            org_code=org_code,
         )
         response = self._send_openapi_request(url, request_params, context=f"{slug}/{kind_value}")
         return parse_openapi_response(response, page_no=page_no, num_of_rows=num_of_rows)
@@ -136,6 +142,7 @@ class MoisClient:
         num_of_rows: int = 100,
         conditions: Mapping[str, Any] | Iterable[Condition] | None = None,
         params: Mapping[str, Any] | None = None,
+        org_code: str | None = None,
     ) -> DebugRun:
         """OpenAPI 1회 실행의 요청/응답/파싱/가공 결과를 디버그 구조로 반환합니다."""
 
@@ -163,6 +170,7 @@ class MoisClient:
                 num_of_rows=num_of_rows,
                 conditions=conditions,
                 params=params,
+                org_code=org_code,
             )
             input_data["conditions"] = {
                 key: value for key, value in request_params.items() if key.startswith("cond[")
@@ -212,6 +220,7 @@ class MoisClient:
         num_of_rows: int = 100,
         conditions: Mapping[str, Any] | Iterable[Condition] | None = None,
         params: Mapping[str, Any] | None = None,
+        org_code: str | None = None,
     ) -> list[Mapping[str, Any]]:
         """한 페이지의 item 목록만 반환합니다."""
 
@@ -223,6 +232,7 @@ class MoisClient:
                 num_of_rows=num_of_rows,
                 conditions=conditions,
                 params=params,
+                org_code=org_code,
             )
         )
 
@@ -235,6 +245,7 @@ class MoisClient:
         conditions: Mapping[str, Any] | Iterable[Condition] | None = None,
         params: Mapping[str, Any] | None = None,
         max_pages: int | None = None,
+        org_code: str | None = None,
     ) -> Iterator[Mapping[str, Any]]:
         """페이지를 넘기며 모든 item을 순회합니다."""
 
@@ -248,6 +259,7 @@ class MoisClient:
                 num_of_rows=num_of_rows,
                 conditions=conditions,
                 params=params,
+                org_code=org_code,
             )
             if not response.items:
                 return
@@ -269,6 +281,7 @@ class MoisClient:
         num_of_rows: int = 100,
         params: Mapping[str, Any] | None = None,
         max_pages: int | None = None,
+        org_code: str | None = None,
     ) -> Iterator[Mapping[str, Any]]:
         """증분 변경분을 순회합니다."""
 
@@ -279,6 +292,7 @@ class MoisClient:
             conditions=[Condition(field, ConditionOperator.GTE, _timestamp_param(since))],
             params=params,
             max_pages=max_pages,
+            org_code=org_code,
         )
 
     def get_updated(
@@ -290,6 +304,7 @@ class MoisClient:
         num_of_rows: int = 100,
         params: Mapping[str, Any] | None = None,
         max_pages: int | None = None,
+        org_code: str | None = None,
     ) -> list[Mapping[str, Any]]:
         """증분 변경분을 목록으로 반환합니다."""
 
@@ -301,6 +316,7 @@ class MoisClient:
                 num_of_rows=num_of_rows,
                 params=params,
                 max_pages=max_pages,
+                org_code=org_code,
             )
         )
 
@@ -481,8 +497,13 @@ class AsyncMoisClient:
         num_of_rows: int = 100,
         conditions: Mapping[str, Any] | Iterable[Condition] | None = None,
         params: Mapping[str, Any] | None = None,
+        org_code: str | None = None,
     ) -> MoisResponse:
-        """업종 slug와 구분(info/history)으로 한 페이지를 비동기로 호출합니다."""
+        """업종 slug와 구분(info/history)으로 한 페이지를 비동기로 호출합니다.
+
+        `org_code`는 개방자치단체코드(opnSfTeamCode) 7자리입니다.
+        예: 서울 3610000, 부산 3620000, 경기 3710000.
+        """
 
         url, request_params, kind_value = _build_openapi_request(
             self.service_key,
@@ -493,6 +514,7 @@ class AsyncMoisClient:
             num_of_rows=num_of_rows,
             conditions=conditions,
             params=params,
+            org_code=org_code,
         )
         response = await self._send_openapi_request(
             url,
@@ -510,6 +532,7 @@ class AsyncMoisClient:
         num_of_rows: int = 100,
         conditions: Mapping[str, Any] | Iterable[Condition] | None = None,
         params: Mapping[str, Any] | None = None,
+        org_code: str | None = None,
     ) -> DebugRun:
         """OpenAPI 1회 비동기 실행의 요청/응답/파싱/가공 결과를 반환합니다."""
 
@@ -537,6 +560,7 @@ class AsyncMoisClient:
                 num_of_rows=num_of_rows,
                 conditions=conditions,
                 params=params,
+                org_code=org_code,
             )
             input_data["conditions"] = {
                 key: value for key, value in request_params.items() if key.startswith("cond[")
@@ -586,6 +610,7 @@ class AsyncMoisClient:
         num_of_rows: int = 100,
         conditions: Mapping[str, Any] | Iterable[Condition] | None = None,
         params: Mapping[str, Any] | None = None,
+        org_code: str | None = None,
     ) -> list[Mapping[str, Any]]:
         """한 페이지의 item 목록만 비동기로 반환합니다."""
 
@@ -597,6 +622,7 @@ class AsyncMoisClient:
                 num_of_rows=num_of_rows,
                 conditions=conditions,
                 params=params,
+                org_code=org_code,
             )
         )
 
@@ -609,6 +635,7 @@ class AsyncMoisClient:
         conditions: Mapping[str, Any] | Iterable[Condition] | None = None,
         params: Mapping[str, Any] | None = None,
         max_pages: int | None = None,
+        org_code: str | None = None,
     ) -> AsyncIterator[Mapping[str, Any]]:
         """페이지를 넘기며 모든 item을 비동기로 순회합니다."""
 
@@ -622,6 +649,7 @@ class AsyncMoisClient:
                 num_of_rows=num_of_rows,
                 conditions=conditions,
                 params=params,
+                org_code=org_code,
             )
             if not response.items:
                 return
@@ -643,6 +671,7 @@ class AsyncMoisClient:
         num_of_rows: int = 100,
         params: Mapping[str, Any] | None = None,
         max_pages: int | None = None,
+        org_code: str | None = None,
     ) -> AsyncIterator[Mapping[str, Any]]:
         """증분 변경분을 비동기로 순회합니다."""
 
@@ -653,6 +682,7 @@ class AsyncMoisClient:
             conditions=[Condition(field, ConditionOperator.GTE, _timestamp_param(since))],
             params=params,
             max_pages=max_pages,
+            org_code=org_code,
         ):
             yield item
 
@@ -665,6 +695,7 @@ class AsyncMoisClient:
         num_of_rows: int = 100,
         params: Mapping[str, Any] | None = None,
         max_pages: int | None = None,
+        org_code: str | None = None,
     ) -> list[Mapping[str, Any]]:
         """증분 변경분을 비동기 목록으로 반환합니다."""
 
@@ -677,6 +708,7 @@ class AsyncMoisClient:
                 num_of_rows=num_of_rows,
                 params=params,
                 max_pages=max_pages,
+                org_code=org_code,
             )
         ]
 
@@ -816,6 +848,7 @@ def _build_openapi_request(
     num_of_rows: int,
     conditions: Mapping[str, Any] | Iterable[Condition] | None,
     params: Mapping[str, Any] | None,
+    org_code: str | None = None,
 ) -> tuple[str, dict[str, Any], str]:
     kind_value = str(kind)
     if kind_value not in {OpenApiKind.INFO.value, OpenApiKind.HISTORY.value}:
@@ -831,6 +864,8 @@ def _build_openapi_request(
         "pageNo": page_no,
         "numOfRows": num_of_rows,
     }
+    if org_code:
+        request_params["opnSfTeamCode"] = org_code
     request_params.update(_condition_params(conditions))
     if params:
         request_params.update(params)

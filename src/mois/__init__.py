@@ -95,6 +95,7 @@ from .models import (
 )
 from .parser import parse_openapi_payload, parse_openapi_response, parse_openapi_text
 from .processor import process_openapi_response
+from .rustfs import AsyncRustfsClient, EffectiveRustfsConfig, RustfsClient
 
 PROVIDER_NAME = "python-krmois-api"
 
@@ -105,6 +106,7 @@ __all__ = [
     "AddressGeocodingValidationResult",
     "AsyncLocalDataFileClient",
     "AsyncMoisClient",
+    "AsyncRustfsClient",
     "Base",
     "BatchSyncLog",
     "BusinessStatusCategory",
@@ -113,6 +115,7 @@ __all__ = [
     "Coordinate",
     "CoordinateReferenceSystem",
     "DebugRun",
+    "EffectiveRustfsConfig",
     "FileDownload",
     "FileDownloadKind",
     "GeocodingCandidate",
@@ -143,6 +146,7 @@ __all__ = [
     "PlaceServiceSummary",
     "PlaceStatsSummary",
     "ResponseField",
+    "RustfsClient",
     "ServiceSlug",
     "StationCoordinates",
     "SyncKind",

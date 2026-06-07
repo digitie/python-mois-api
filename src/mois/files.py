@@ -19,6 +19,7 @@ from .catalogs import get_file_download
 from .convert import convert_value, field_for_header
 from .exceptions import MoisParseError, MoisRequestError
 from .models import Coordinate, LocalDataRecord
+from .rustfs import AsyncRustfsClient, EffectiveRustfsConfig, RustfsClient
 
 DEFAULT_FILE_BASE_URL = "https://file.localdata.go.kr"
 _ITERATION_DONE = object()
@@ -165,8 +166,42 @@ class LocalDataFileClient:
         with Path(path).open("rb") as source:
             yield from iter_records_from_binary(source, slug=slug, encoding=encoding)
 
+    def download_to_rustfs(
+        self,
+        slug: str,
+        output_path: str | os.PathLike[str],
+        *,
+        org_code: str | None = None,
+        object_key: str | None = None,
+        config: EffectiveRustfsConfig | None = None,
+    ) -> str:
+        """파일을 로컬 `output_path`에 다운로드하고 동시에 RustFS에 저장(업로드)합니다."""
+        self.download(slug, output_path, org_code=org_code)
+
+        cfg = config or EffectiveRustfsConfig.from_env()
+        if not cfg.enabled:
+            raise ValueError(
+                "RustFS가 활성화되어 있지 않습니다. MOIS_RUSTFS_ENABLED=true 설정이 필요합니다."
+            )
+
+        filename = Path(output_path).name
+        key = object_key or cfg.object_key(slug, filename)
+
+        client = RustfsClient(cfg)
+        client.put_file(key, Path(output_path))
+
+        return f"rustfs://{cfg.bucket}/{key}"
+
     def __getattr__(self, name: str) -> Any:
         """`load_hospitals()`, `iter_hospitals()` 편의 메서드를 동적으로 제공합니다."""
+
+        if name.startswith("download_") and name.endswith("_to_rustfs"):
+            slug = name[len("download_") : -len("_to_rustfs")]
+
+            def downloader_to_rustfs(output_path: str | os.PathLike[str], **kwargs: Any) -> str:
+                return self.download_to_rustfs(slug, output_path, **kwargs)
+
+            return downloader_to_rustfs
 
         if name.startswith("iter_"):
             slug = name[len("iter_") :]
@@ -364,8 +399,42 @@ class AsyncLocalDataFileClient:
                     return
                 yield cast(LocalDataRecord, record)
 
+    async def download_to_rustfs(
+        self,
+        slug: str,
+        output_path: str | os.PathLike[str],
+        *,
+        org_code: str | None = None,
+        object_key: str | None = None,
+        config: EffectiveRustfsConfig | None = None,
+    ) -> str:
+        """파일을 로컬 `output_path`에 비동기로 다운로드하고 동시에 RustFS에 저장(업로드)합니다."""
+        await self.download(slug, output_path, org_code=org_code)
+
+        cfg = config or EffectiveRustfsConfig.from_env()
+        if not cfg.enabled:
+            raise ValueError(
+                "RustFS가 활성화되어 있지 않습니다. MOIS_RUSTFS_ENABLED=true 설정이 필요합니다."
+            )
+
+        filename = Path(output_path).name
+        key = object_key or cfg.object_key(slug, filename)
+
+        client = AsyncRustfsClient(cfg)
+        await client.put_file(key, Path(output_path))
+
+        return f"rustfs://{cfg.bucket}/{key}"
+
     def __getattr__(self, name: str) -> Any:
         """`await files.load_hospitals()` 같은 비동기 편의 메서드를 제공합니다."""
+
+        if name.startswith("download_") and name.endswith("_to_rustfs"):
+            slug = name[len("download_") : -len("_to_rustfs")]
+
+            async def downloader_to_rustfs(output_path: str | os.PathLike[str], **kwargs: Any) -> str:
+                return await self.download_to_rustfs(slug, output_path, **kwargs)
+
+            return downloader_to_rustfs
 
         if name.startswith("iter_"):
             slug = name[len("iter_") :]

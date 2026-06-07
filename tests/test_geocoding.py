@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
 from typing import Any
 
 import pytest
@@ -12,16 +11,6 @@ from mois import (
     validate_address_geocoding_probe,
     validate_address_geocoding_probe_async,
 )
-
-
-@dataclass(frozen=True)
-class ReverseCandidate:
-    x: float
-    y: float
-    road_address: str
-    source: str
-    distance_m: float
-    raw: dict[str, Any]
 
 
 class FakeGeocoder:
@@ -42,9 +31,9 @@ class FakeGeocoder:
         x: float,
         y: float,
         max_distance_m: float | None = None,
-    ) -> ReverseCandidate:
+    ) -> GeocodingCandidate:
         assert max_distance_m == 2
-        return ReverseCandidate(
+        return GeocodingCandidate(
             x=x,
             y=y,
             road_address="Seoul Jongno-gu Jahamun-ro 96 (Pyeongan)",
@@ -108,8 +97,8 @@ class AsyncFakeGeocoder:
         x: float,
         y: float,
         max_distance_m: float | None = None,
-    ) -> ReverseCandidate:
-        return ReverseCandidate(
+    ) -> GeocodingCandidate:
+        return GeocodingCandidate(
             x=x,
             y=y,
             road_address="서울특별시 종로구 자하문로 96",
@@ -167,8 +156,8 @@ class KoreanGeocoder:
         x: float,
         y: float,
         max_distance_m: float | None = None,
-    ) -> ReverseCandidate:
-        return ReverseCandidate(
+    ) -> GeocodingCandidate:
+        return GeocodingCandidate(
             x=x,
             y=y,
             road_address="서울특별시 종로구 자하문로 96",

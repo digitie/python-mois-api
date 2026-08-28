@@ -15,3 +15,5 @@
 - 여행 플래너 활용 아키텍처, DB 스키마, UPSERT 기반 증분 동기화 문서 추가
 - API/파일/응답변수/증분 OpenAPI 신청 링크 목록 문서화
 - 네트워크 없는 단위 테스트 추가
+- 4인 전문 리뷰어 서브에이전트의 적대적 코드 리뷰로 발견·검증된 버그 수정: CSV 좌표 이상값으로 인한 전체 로드 중단, `LocalDataRecord.is_open`의 "영업정지" 오분류, DB 왕복 시 `PlaceRecord.data` 필드 유실, `iter_updated`/`get_updated`의 tz-aware datetime KST 미변환, `debug_request()`의 `service_key` 오류 메시지 유출, 게이트웨이 인증 오류(XML `cmmMsgHeader`) 무시, `iter_records` 무한 루프 가능성, 비동기 파일 클라이언트의 이벤트 루프 블로킹 등
+- GitHub Actions CI 워크플로(`lint`/`typecheck`/`test`) 추가

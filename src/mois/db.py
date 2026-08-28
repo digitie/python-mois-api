@@ -692,7 +692,7 @@ def sync_localdata_source_db(
     encoding: str | None = None,
     batch_size: int = 1000,
     sync_kind: str = "localdata_full",
-    commit: bool = False,
+    commit: bool = True,
 ) -> LocalDataSourceDbSyncResult:
     """Refresh the MOIS source DB from `LocalDataFileClient` public iterators.
 
@@ -737,9 +737,8 @@ def sync_localdata_source_db(
             fetched_count=slug_scanned,
             status="success",
         )
-
-    if commit:
-        session.commit()
+        if commit:
+            session.commit()
 
     return LocalDataSourceDbSyncResult(
         service_slugs=slugs,
@@ -818,19 +817,81 @@ def iter_closed_place_records(
     )
 
 
+_PLACE_RECORD_MASTER_FIELDS = tuple(
+    field_name
+    for field_name in PlaceRecord.model_fields
+    if field_name not in {"data", "raw"} and hasattr(PlaceMaster, field_name)
+)
+
+_MASTER_FIELD_TO_PROMOTED_DATA_KEY: dict[str, str] = {
+    "mng_no": "MNG_NO",
+    "opn_authority_code": "OPN_ATMY_GRP_CD",
+    "place_name": "BPLC_NM",
+    "status_code": "SALS_STTS_CD",
+    "status_name": "SALS_STTS_NM",
+    "detail_status_code": "DTL_SALS_STTS_CD",
+    "detail_status_name": "DTL_SALS_STTS_NM",
+    "license_date": "LCPMT_YMD",
+    "license_cancelled_date": "LCPMT_RTRCN_YMD",
+    "closed_date": "CLSBIZ_YMD",
+    "temporary_business_start_date": "TCBIZ_BGNG_YMD",
+    "temporary_business_end_date": "TCBIZ_END_YMD",
+    "reopen_date": "ROBIZ_YMD",
+    "data_update_type": "DAT_UPDT_SE",
+    "telno": "TELNO",
+    "road_address": "ROAD_NM_ADDR",
+    "lot_address": "LOTNO_ADDR",
+    "road_zip": "ROAD_NM_ZIP",
+    "lot_zip": "LCTN_ZIP",
+    "business_type_name": "BZSTAT_SE_NM",
+    "multi_use_business_place_yn": "MLT_UTZTN_BSNSSP_YN",
+    "sanitation_business_status_name": "SNTTN_BZSTAT_NM",
+    "facility_total_scale": "FCLT_TOTAL_SCL",
+    "water_supply_facility_type_name": "WTRSPPL_FCLT_SE_NM",
+    "culture_sports_business_type_name": "CULTR_SPTS_TPBIZ_NM",
+    "sales_method_name": "NTSL_MTH_NM",
+    "designation_date": "DSGN_YMD",
+    "building_ownership_type_name": "BLDG_PSN_SE_NM",
+    "building_usage_name": "BLDG_USG_NM",
+    "ground_floor_count": "GRND_NOFL",
+    "underground_floor_count": "UDGD_NOFL",
+    "total_floor_count": "TOTAL_NOFL",
+    "facility_area": "FCAR",
+    "total_area": "TOT_AR",
+    "sickbed_count": "SCKBD_CNT",
+    "bed_count": "BED_CNT",
+    "healthcare_worker_count": "HCWKR_CNT",
+    "hospital_room_count": "HSPTLZRM_CNT",
+    "medical_institution_type_name": "MDLCR_INST_BTP_NM",
+    "medical_subject_names": "MDEXM_SBJCT_CN_NM",
+    "legal_dong_code": "LEGAL_DONG_CD",
+    "road_name_code": "RN_MGT_SN",
+    "building_management_number": "BD_MGT_SN",
+    "road_name_emd_no": "ROAD_NM_EMD_NO",
+    "source_x": "CRD_INFO_X",
+    "source_y": "CRD_INFO_Y",
+    "lat": "WGS84_LAT",
+    "lon": "WGS84_LON",
+    "data_updated_at": "DAT_UPDT_PNT",
+    "source_modified_at": "LAST_MDFCN_PNT",
+}
+
+
 def place_record_from_models(
     master: PlaceMaster,
     detail: PlaceDetail | None = None,
 ) -> PlaceRecord:
     """Convert ORM rows back to the stable public `PlaceRecord` model."""
 
-    values: dict[str, Any] = {}
-    for field_name in PlaceRecord.model_fields:
-        if field_name in {"data", "raw"}:
-            continue
-        if hasattr(master, field_name):
-            values[field_name] = getattr(master, field_name)
-    values["data"] = dict(detail.specific_data if detail is not None else {})
+    values: dict[str, Any] = {
+        field_name: getattr(master, field_name) for field_name in _PLACE_RECORD_MASTER_FIELDS
+    }
+    data = dict(detail.specific_data if detail is not None else {})
+    for field_name, data_key in _MASTER_FIELD_TO_PROMOTED_DATA_KEY.items():
+        value = values.get(field_name)
+        if value is not None:
+            data[data_key] = value
+    values["data"] = data
     values["raw"] = dict(detail.raw_data if detail is not None else {})
     return PlaceRecord(**values)
 
@@ -854,7 +915,6 @@ def create_sqlite_schema(engine: Engine, *, load_spatialite: bool = True) -> boo
             _set_sqlite_pragmas(connection)
         Base.metadata.create_all(connection)
         if engine.dialect.name == "sqlite":
-            _ensure_sqlite_performance_indexes(connection)
             _ensure_sqlite_json_indexes(connection)
             _ensure_sqlite_search_table(connection)
             if load_spatialite:
@@ -915,10 +975,7 @@ def refresh_spatial_geometries(engine: Engine, *, batch_size: int = 100_000) -> 
                   FROM {table_name}
                  WHERE lat IS NOT NULL
                    AND lon IS NOT NULL
-                   AND (
-                       {SPATIALITE_GEOMETRY_COLUMN} IS NULL
-                       OR geom_wkt IS NOT NULL
-                   )
+                   AND {SPATIALITE_GEOMETRY_COLUMN} IS NULL
                 """
             )
         ).one()
@@ -942,10 +999,7 @@ def refresh_spatial_geometries(engine: Engine, *, batch_size: int = 100_000) -> 
                          WHERE rowid BETWEEN :start AND :end
                            AND lat IS NOT NULL
                            AND lon IS NOT NULL
-                           AND (
-                               {SPATIALITE_GEOMETRY_COLUMN} IS NULL
-                               OR geom_wkt IS NOT NULL
-                           )
+                           AND {SPATIALITE_GEOMETRY_COLUMN} IS NULL
                         """
                     ),
                     {"start": start, "end": end},
@@ -1195,72 +1249,6 @@ def _ensure_sqlite_json_indexes(connection: Connection) -> None:
         """
         CREATE INDEX IF NOT EXISTS ix_mois_place_detail_specific_valid
         ON mois_place_detail(json_valid(specific_data))
-        """,
-    ):
-        connection.execute(text(sql))
-
-
-def _ensure_sqlite_performance_indexes(connection: Connection) -> None:
-    for sql in (
-        """
-        CREATE INDEX IF NOT EXISTS ix_mois_place_master_status
-        ON mois_place_master(service_slug, status_code)
-        """,
-        """
-        CREATE INDEX IF NOT EXISTS ix_mois_place_master_detail_status
-        ON mois_place_master(service_slug, detail_status_code)
-        """,
-        """
-        CREATE INDEX IF NOT EXISTS ix_mois_place_master_detail_status_lookup
-        ON mois_place_master(detail_status_code, updated_at)
-        """,
-        """
-        CREATE INDEX IF NOT EXISTS ix_mois_place_master_data_update_type
-        ON mois_place_master(data_update_type)
-        """,
-        """
-        CREATE INDEX IF NOT EXISTS ix_mois_place_master_authority
-        ON mois_place_master(opn_authority_code)
-        """,
-        """
-        CREATE INDEX IF NOT EXISTS ix_mois_place_master_category
-        ON mois_place_master(category)
-        """,
-        """
-        CREATE INDEX IF NOT EXISTS ix_mois_place_master_category_open
-        ON mois_place_master(category, is_open)
-        """,
-        """
-        CREATE INDEX IF NOT EXISTS ix_mois_place_master_is_open
-        ON mois_place_master(is_open)
-        """,
-        """
-        CREATE INDEX IF NOT EXISTS ix_mois_place_master_legal_dong
-        ON mois_place_master(legal_dong_code)
-        """,
-        """
-        CREATE INDEX IF NOT EXISTS ix_mois_place_master_road_name
-        ON mois_place_master(road_name_code)
-        """,
-        """
-        CREATE INDEX IF NOT EXISTS ix_mois_place_master_lat_lon
-        ON mois_place_master(lat, lon)
-        """,
-        """
-        CREATE INDEX IF NOT EXISTS ix_mois_place_master_subtype
-        ON mois_place_master(service_slug, subtype_name)
-        """,
-        """
-        CREATE INDEX IF NOT EXISTS ix_mois_place_master_business_type
-        ON mois_place_master(business_type_name)
-        """,
-        """
-        CREATE INDEX IF NOT EXISTS ix_mois_place_master_sales_method
-        ON mois_place_master(sales_method_name)
-        """,
-        """
-        CREATE INDEX IF NOT EXISTS ix_mois_place_master_updated
-        ON mois_place_master(updated_at)
         """,
     ):
         connection.execute(text(sql))

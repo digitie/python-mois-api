@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import traceback
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, is_dataclass
@@ -23,6 +24,10 @@ SENSITIVE_KEYS = frozenset(
         "access_token",
         "refresh_token",
     }
+)
+
+_SENSITIVE_VALUE_PATTERN = re.compile(
+    r"(?i)\b(" + "|".join(re.escape(key) for key in SENSITIVE_KEYS) + r")=[^&\s\"']+"
 )
 
 
@@ -50,7 +55,7 @@ class DebugRun:
             "parsed": jsonable(self.parsed),
             "processed": jsonable(self.processed),
             "trace": list(self.trace),
-            "error": jsonable(self.error),
+            "error": redact_sensitive(jsonable(self.error)),
         }
 
 
@@ -88,6 +93,8 @@ def redact_sensitive(obj: Any) -> Any:
         return result
     if isinstance(obj, list | tuple):
         return [redact_sensitive(value) for value in obj]
+    if isinstance(obj, str):
+        return _SENSITIVE_VALUE_PATTERN.sub(r"\1=<REDACTED>", obj)
     return obj
 
 

@@ -221,7 +221,7 @@ def validate_address_geocoding_probe(
                 fallback_x=input_x,
                 fallback_y=input_y,
             )
-            reverse_distance = reverse_candidate.distance_m
+            reverse_distance = _distance(input_x, input_y, reverse_candidate.x, reverse_candidate.y)
 
     distance_values = [
         value for value in (geocode_distance, reverse_distance) if value is not None
@@ -292,7 +292,7 @@ async def validate_address_geocoding_probe_async(
                 fallback_x=input_x,
                 fallback_y=input_y,
             )
-            reverse_distance = reverse_candidate.distance_m
+            reverse_distance = _distance(input_x, input_y, reverse_candidate.x, reverse_candidate.y)
 
     distance_values = [
         value for value in (geocode_distance, reverse_distance) if value is not None

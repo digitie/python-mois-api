@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import IO, Any, cast
 from urllib.parse import urlencode
 
+from pyproj.exceptions import ProjError
+
 from ._http import HTTP_CLIENT_ERROR, build_async_session, build_session, raise_for_http_error
 from .catalogs import get_file_download
 from .convert import convert_value, field_for_header
@@ -22,6 +24,7 @@ from .models import Coordinate, LocalDataRecord
 
 DEFAULT_FILE_BASE_URL = "https://file.localdata.go.kr"
 _ITERATION_DONE = object()
+_MAX_ZIP_MEMBER_BYTES = 1024 * 1024 * 1024
 
 
 class LocalDataFileClient:
@@ -282,8 +285,7 @@ class AsyncLocalDataFileClient:
         with tempfile.TemporaryFile() as output:
             binary_output = cast(IO[bytes], output)
             await self._download_to_file(slug, binary_output, org_code=org_code)
-            binary_output.seek(0)
-            return binary_output.read()
+            return await asyncio.to_thread(_read_all_bytes, binary_output)
 
     async def download(
         self,
@@ -309,8 +311,10 @@ class AsyncLocalDataFileClient:
     ) -> list[LocalDataRecord]:
         """업종 파일을 비동기로 다운로드하고 `LocalDataRecord` 목록으로 로드합니다."""
 
-        return load_records_from_bytes(
-            await self.download_bytes(slug, org_code=org_code),
+        content = await self.download_bytes(slug, org_code=org_code)
+        return await asyncio.to_thread(
+            load_records_from_bytes,
+            content,
             slug=slug,
             encoding=encoding,
         )
@@ -328,8 +332,12 @@ class AsyncLocalDataFileClient:
             binary_output = cast(IO[bytes], output)
             await self._download_to_file(slug, binary_output, org_code=org_code)
             binary_output.seek(0)
-            for record in iter_records_from_binary(binary_output, slug=slug, encoding=encoding):
-                yield record
+            records = iter_records_from_binary(binary_output, slug=slug, encoding=encoding)
+            while True:
+                record = await asyncio.to_thread(_next_record_or_done, records)
+                if record is _ITERATION_DONE:
+                    return
+                yield cast(LocalDataRecord, record)
 
     async def load_file(
         self,
@@ -471,6 +479,11 @@ def _next_record_or_done(records: Iterator[LocalDataRecord]) -> LocalDataRecord 
         return _ITERATION_DONE
 
 
+def _read_all_bytes(stream: IO[bytes]) -> bytes:
+    stream.seek(0)
+    return stream.read()
+
+
 def iter_records_from_bytes(
     content: bytes,
     *,
@@ -496,7 +509,6 @@ def iter_records_from_binary(
 ) -> Iterator[LocalDataRecord]:
     """seek 가능한 binary CSV/ZIP 스트림을 정규화된 객체로 순회합니다."""
 
-    selected_encoding = encoding or "cp949"
     if _is_zip_binary(source):
         with zipfile.ZipFile(source) as archive:
             candidates = [
@@ -507,6 +519,7 @@ def iter_records_from_binary(
             if not candidates:
                 raise MoisParseError("ZIP 파일 안에서 CSV를 찾을 수 없습니다")
             with archive.open(candidates[0]) as csv_file:
+                selected_encoding = _peek_csv_encoding(csv_file, encoding)
                 yield from _iter_records_from_binary_reader(
                     csv_file,
                     slug=slug,
@@ -515,6 +528,7 @@ def iter_records_from_binary(
         return
 
     source.seek(0)
+    selected_encoding = _peek_csv_encoding(source, encoding)
     yield from _iter_records_from_binary_reader(source, slug=slug, encoding=selected_encoding)
 
 
@@ -544,7 +558,10 @@ def _iter_records_from_reader(
         for header, raw_value in raw.items():
             field = field_for_header(header)
             data[field] = convert_value(field, header, raw_value)
-        coordinates = _coordinates_from_data(data)
+        try:
+            coordinates = _coordinates_from_data(data)
+        except (ValueError, ProjError):
+            coordinates = None
         if coordinates is not None:
             data["WGS84_LON"] = coordinates.lon
             data["WGS84_LAT"] = coordinates.lat
@@ -590,6 +607,9 @@ def _first_csv_bytes(content: bytes) -> bytes:
         ]
         if not candidates:
             raise MoisParseError("ZIP 파일 안에서 CSV를 찾을 수 없습니다")
+        info = archive.getinfo(candidates[0])
+        if info.file_size > _MAX_ZIP_MEMBER_BYTES:
+            raise MoisParseError("ZIP 안의 CSV가 허용된 최대 크기를 초과합니다")
         return archive.read(candidates[0])
 
 
@@ -631,22 +651,33 @@ def _decode_csv(content: bytes, encoding: str | None) -> str:
     return content.decode(_choose_csv_encoding(content, encoding))
 
 
-def _choose_csv_encoding(content: bytes, encoding: str | None) -> str:
+def _peek_csv_encoding(source: IO[bytes], encoding: str | None) -> str:
+    if encoding:
+        return encoding
+    position = source.tell()
+    try:
+        sample = source.read(65536)
+    finally:
+        source.seek(position)
+    return _choose_csv_encoding(sample, None, partial=True)
+
+
+def _choose_csv_encoding(content: bytes, encoding: str | None, *, partial: bool = False) -> str:
     encodings: Iterable[str] = (encoding,) if encoding else ("utf-8-sig", "cp949", "euc-kr")
     last_error: UnicodeDecodeError | None = None
     for candidate in encodings:
         if candidate is None:
             continue
         try:
-            _validate_decoding(content, candidate)
+            _validate_decoding(content, candidate, final=not partial)
             return candidate
         except UnicodeDecodeError as exc:
             last_error = exc
     raise MoisParseError("CSV 인코딩을 해석할 수 없습니다") from last_error
 
 
-def _validate_decoding(content: bytes, encoding: str) -> None:
+def _validate_decoding(content: bytes, encoding: str, *, final: bool = True) -> None:
     decoder = codecs.getincrementaldecoder(encoding)()
     for offset in range(0, len(content), 65536):
         decoder.decode(content[offset : offset + 65536], final=False)
-    decoder.decode(b"", final=True)
+    decoder.decode(b"", final=final)

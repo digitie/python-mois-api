@@ -487,7 +487,12 @@ class LocalDataRecord:
         if self.business_status_code in {"02", "03", "04"}:
             return False
         if self.business_status_name:
-            if "폐업" in self.business_status_name or "취소" in self.business_status_name:
+            if (
+                "폐업" in self.business_status_name
+                or "취소" in self.business_status_name
+                or "정지" in self.business_status_name
+                or "말소" in self.business_status_name
+            ):
                 return False
             if "영업" in self.business_status_name or "정상" in self.business_status_name:
                 return True

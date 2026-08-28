@@ -96,7 +96,7 @@ from .models import (
 from .parser import parse_openapi_payload, parse_openapi_response, parse_openapi_text
 from .processor import process_openapi_response
 
-PROVIDER_NAME = "python-krmois-api"
+PROVIDER_NAME = "python-mois-api"
 
 __all__ = [
     "PROVIDER_NAME",

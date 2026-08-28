@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import random
 import threading
 import time
 from dataclasses import dataclass, field
@@ -14,6 +15,7 @@ from .exceptions import MoisRequestError, MoisServerError
 
 DEFAULT_USER_AGENT = "python-mois-api/0.1 (+https://github.com/digitie/python-mois-api)"
 RETRY_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+MAX_RETRY_DELAY = 8.0
 HTTP_CLIENT_ERROR = httpx.HTTPError
 
 
@@ -140,8 +142,11 @@ class SyncHttpxTransport:
                 time.sleep(_retry_delay(attempt))
                 continue
             if response.status_code in RETRY_STATUS_CODES and attempt + 1 < attempts:
+                retry_after = _parse_retry_after(response)
+                if retry_after is not None and retry_after > MAX_RETRY_DELAY:
+                    return response
                 response.close()
-                time.sleep(_retry_delay(attempt))
+                time.sleep(_retry_delay(attempt, retry_after))
                 continue
             return response
         assert last_error is not None
@@ -202,8 +207,11 @@ class AsyncHttpxTransport:
                 await asyncio.sleep(_retry_delay(attempt))
                 continue
             if response.status_code in RETRY_STATUS_CODES and attempt + 1 < attempts:
+                retry_after = _parse_retry_after(response)
+                if retry_after is not None and retry_after > MAX_RETRY_DELAY:
+                    return response
                 await response.aclose()
-                await asyncio.sleep(_retry_delay(attempt))
+                await asyncio.sleep(_retry_delay(attempt, retry_after))
                 continue
             return response
         assert last_error is not None
@@ -260,5 +268,19 @@ def raise_for_http_error(response: Any, context: str) -> None:
     raise MoisRequestError(f"{context}: HTTP {status}")
 
 
-def _retry_delay(attempt: int) -> float:
-    return float(min(8.0, 0.5 * (2**attempt)))
+def _retry_delay(attempt: int, retry_after: float | None = None) -> float:
+    if retry_after is not None:
+        return retry_after
+    delay = min(MAX_RETRY_DELAY, 0.5 * (2**attempt))
+    return random.uniform(0, delay)
+
+
+def _parse_retry_after(response: httpx.Response) -> float | None:
+    value = response.headers.get("Retry-After")
+    if value is None:
+        return None
+    try:
+        seconds = float(value)
+    except ValueError:
+        return None
+    return seconds if seconds >= 0 else None

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
 from typing import Any
 
 import pytest
@@ -14,14 +13,29 @@ from mois import (
 )
 
 
-@dataclass(frozen=True)
-class ReverseCandidate:
-    x: float
-    y: float
-    road_address: str
-    source: str
-    distance_m: float
-    raw: dict[str, Any]
+def _reverse_candidate(
+    x: float,
+    y: float,
+    *,
+    road_address: str,
+    source: str,
+    raw: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """지오코더가 돌려주는 `Mapping[str, Any]` 후보를 흉내낸 fixture(ADR-009).
+
+    실제 통합에서는 호출자가 kor-travel-geo v2의 `CandidateV2`(`address.road_address`,
+    `point.lon`/`point.lat` 등)를 이 모양으로 변환해 전달합니다
+    (`docs/integration-with-kor-travel-geo.md` 참고).
+    """
+
+    return {
+        "x": x,
+        "y": y,
+        "road_address": road_address,
+        "source": source,
+        "distance_m": 0.0,
+        "raw": raw or {},
+    }
 
 
 class FakeGeocoder:
@@ -42,14 +56,13 @@ class FakeGeocoder:
         x: float,
         y: float,
         max_distance_m: float | None = None,
-    ) -> ReverseCandidate:
+    ) -> dict[str, Any]:
         assert max_distance_m == 2
-        return ReverseCandidate(
-            x=x,
-            y=y,
+        return _reverse_candidate(
+            x,
+            y,
             road_address="Seoul Jongno-gu Jahamun-ro 96 (Pyeongan)",
             source="fixture",
-            distance_m=0.0,
             raw={"source_id": "nearest-1"},
         )
 
@@ -98,7 +111,7 @@ class AsyncFakeGeocoder:
                 x=953243.1,
                 y=1954023.1,
                 road_address="서울특별시 종로구 자하문로 96",
-                source="kraddr-geo",
+                source="kor-travel-geo",
             )
         ]
 
@@ -108,18 +121,16 @@ class AsyncFakeGeocoder:
         x: float,
         y: float,
         max_distance_m: float | None = None,
-    ) -> ReverseCandidate:
-        return ReverseCandidate(
-            x=x,
-            y=y,
+    ) -> dict[str, Any]:
+        return _reverse_candidate(
+            x,
+            y,
             road_address="서울특별시 종로구 자하문로 96",
-            source="kraddr-geo",
-            distance_m=0.0,
-            raw={},
+            source="kor-travel-geo",
         )
 
 
-def test_validate_async_supports_kraddr_geo_style_client() -> None:
+def test_validate_async_supports_kor_travel_geo_style_client() -> None:
     async def run() -> None:
         result = await validate_address_geocoding_probe_async(
             AddressGeocodingProbe(
@@ -167,14 +178,12 @@ class KoreanGeocoder:
         x: float,
         y: float,
         max_distance_m: float | None = None,
-    ) -> ReverseCandidate:
-        return ReverseCandidate(
-            x=x,
-            y=y,
+    ) -> dict[str, Any]:
+        return _reverse_candidate(
+            x,
+            y,
             road_address="서울특별시 종로구 자하문로 96",
             source="fixture",
-            distance_m=0.0,
-            raw={},
         )
 
 

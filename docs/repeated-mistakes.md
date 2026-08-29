@@ -73,22 +73,35 @@
 
 ## 외부 지오코더 통합
 
-- 주소 정규화·정/역 지오코딩을 `mois` 안에 재구현하지 않습니다. `python-kraddr-geo`(ADR-002)에서
-  가져오고 `validate_address_geocoding_probe[_async]`로 비교만 합니다.
-- `python-kraddr-geo`는 async-only(kraddr-geo 자체 ADR-002)입니다. 동기 helper에 코루틴이 들어오면
-  `TypeError`로 거부됩니다. async 클라이언트에는 항상 `validate_address_geocoding_probe_async`를 씁니다
-  (ADR-004).
-- 검증 helper는 좌표계를 명시적으로 받습니다. `kraddr-geo`는 EPSG:5179 기본, `mois` 원본은 EPSG:5174입니다.
-  `geocoder_crs="EPSG:5179"`를 빼먹지 않습니다.
+- 주소 정규화·정/역 지오코딩을 `mois` 안에 재구현하지 않습니다. `kor-travel-geo`(구
+  `python-kraddr-geo`, ADR-002)에서 가져오고 `validate_address_geocoding_probe[_async]`로 비교만
+  합니다.
+- `kor-travel-geo`는 async-only입니다. 동기 helper에 코루틴이 들어오면 `TypeError`로 거부됩니다.
+  async 클라이언트에는 항상 `validate_address_geocoding_probe_async`를 씁니다(ADR-004).
+- 검증 helper는 좌표계를 명시적으로 받습니다. `kor-travel-geo` v2는 EPSG:4326(lon/lat) 기본(v1
+  REST API는 vworld 호환 EPSG:5179), `mois` 원본은 EPSG:5174입니다. 실제로 쓰는 API 버전에 맞는
+  `geocoder_crs`를 빼먹지 않습니다.
 - 보강된 좌표·코드는 `mois_place_master`의 `lat`, `lon`, `legal_dong_code`, `road_name_code`,
   `building_management_number`에 채워 넣되 **원본 EPSG:5174 좌표(`source_x`, `source_y`)는 덮어쓰지
   않습니다**(ADR-005).
-- 새로운 보강 필드는 우리 응답에 자체 키로 추가하지 말고 `kraddr-geo`의 `x_extension`을 통해 받습니다
-  (kraddr-geo 자체 ADR-003 호환).
+- 새로운 보강 필드는 우리 응답에 자체 키로 추가하지 말고 `kor-travel-geo` v2의
+  `CandidateV2.metadata`/`region`을 통해 받습니다.
 - `python-kraddr-base`(`kraddr.base.PlaceCoordinate`, `Address`, `LatLon`, `JibunAddress`,
   `RoadNameAddress`)를 import 하지 않습니다(ADR-009). 외부 지오코더가 그런 값 객체를 반환하면
   호출자가 dict 또는 `GeocodingCandidate`로 변환해 전달합니다. `_candidate_from_any`는 임의 객체
   duck typing을 더 이상 받지 않고 `TypeError`를 던집니다.
+- **테스트 fixture도 이 계약을 따라야 합니다.** `tests/test_geocoding.py`가 한동안 자체 dataclass
+  (`ReverseCandidate`)를 반환하는 fake 지오코더를 썼는데, `_candidate_from_any`가
+  `GeocodingCandidate`/`Mapping`만 받도록 좁혀진 뒤에도(ADR-009) fixture를 안 고쳐서 조용히 깨져
+  있었습니다(2026-08-29 발견). 지오코더 fixture는 항상 dict를 반환하게 만들고, `AddressGeocoder`
+  Protocol을 바꿀 때는 `tests/test_geocoding.py`와 `tests/test_no_kraddr_base.py`를 함께 실행해
+  회귀가 없는지 확인합니다.
+- **파트너 저장소 이름·API는 언제든 바뀔 수 있습니다.** `python-kraddr-geo`는 저장소명이
+  `kor-travel-geo`로, 패키지가 `kraddr.geo` → `kortravelgeo`로, API가 `v1`(vworld 호환)에서
+  `v2`(`CandidateV2`)로 바뀌었지만 이 문서와 ADR은 한동안 옛 이름/메서드(`nearest_road_address_xy`
+  등 실제로 존재한 적 없는 메서드 포함)를 인용하고 있었습니다. 파트너 저장소를 언급하는 코드/문서를
+  작성하기 전에는 실제 저장소(`gh repo view`, 로컬 체크아웃)를 확인하고, ADR 본문을 그대로
+  베끼지 않습니다.
 
 ## 패키지 경로
 

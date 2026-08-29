@@ -26,23 +26,25 @@
 ## ADR-002 — `python-mois-api`는 인허가 데이터 제공에 집중하고, 주소 지오코딩은 위임한다
 
 - **일시**: 2026-05-24
-- **상태**: 채택
+- **상태**: 채택 (2026-08-29, `python-kraddr-geo` → `kor-travel-geo` 리네임 반영,
+  [`docs/integration-with-kor-travel-geo.md`](integration-with-kor-travel-geo.md) 참고)
 
 행정안전부 지방행정 인허가정보 OpenAPI 195종과 localdata 파일 다운로드 195종을 `mois` 패키지가
-책임진다. 주소 정규화, 정/역 지오코딩, 도로명주소 전자지도(SHP) 적재는 별도 라이브러리인
-[`python-kraddr-geo`](https://github.com/digitie/python-kraddr-geo)에서 담당하며, `mois`는
-그쪽 결과와 자기 좌표를 검증하는 helper(`validate_address_geocoding_probe`,
-`validate_address_geocoding_probe_async`)만 제공한다.
+책임진다. 주소 정규화, 정/역 지오코딩, 도로명주소 전자지도 적재는 별도 라이브러리인
+[`kor-travel-geo`](https://github.com/digitie/kor-travel-geo)(구 `python-kraddr-geo`, Python 패키지
+`kortravelgeo`, **GPL-3.0-only**)에서 담당하며, `mois`는 그쪽 결과와 자기 좌표를 검증하는
+helper(`validate_address_geocoding_probe`, `validate_address_geocoding_probe_async`)만 제공한다.
 
 이렇게 분리한 이유:
 
 - 인허가 데이터는 일 단위 배치/증분이고, 주소·좌표는 도로명주소 갱신 주기(월·분기)와 외부 API 정책에
   묶여 있다. 두 책임을 한 라이브러리에 섞으면 릴리스 주기와 배포 부담이 합쳐진다.
-- `python-kraddr-geo`는 PostgreSQL + PostGIS, async-only API, vworld 호환 응답 같은 자체 아키텍처가
-  있다(kraddr-geo `ADR-001`, `ADR-002`, `ADR-003`). `mois`가 비슷한 기능을 재구현하면 두 곳을
-  따라가야 한다.
-- 사용자(TripMate, `python-krtour-map`)는 두 라이브러리를 함께 쓰면 된다. `mois`는 인허가 행을 주고,
-  `kraddr-geo`는 그 주소·좌표를 검증/보강한다.
+- `kor-travel-geo`는 PostgreSQL + PostGIS, async-only API, vworld 호환(`v1`)/provider-neutral(`v2`)
+  응답 같은 자체 아키텍처가 있다. `mois`가 비슷한 기능을 재구현하면 그쪽을 따라가야 한다.
+- `kor-travel-geo`는 GPL-3.0-only이고 `mois`는 MIT이다. `mois`가 직접 import하면 라이선스가
+  전파되므로, `mois`는 그 소스를 절대 import하지 않고 dict 계약으로만 결과를 받는다(ADR-009).
+- 사용자(TripMate, `kor-travel-map`)는 두 라이브러리를 함께 쓰면 된다. `mois`는 인허가 행을 주고,
+  `kor-travel-geo`는 그 주소·좌표를 검증/보강한다.
 
 ---
 
@@ -71,9 +73,9 @@ wrapper/adapter/facade/장기 호환 별칭을 추가하지 않는다. 직접 �
 `validate_address_geocoding_probe` / `validate_address_geocoding_probe_async`는 항상 짝으로
 유지한다. 신규 공개 API는 한쪽만 추가하지 않는다.
 
-`python-kraddr-geo`는 ADR-002로 async-only를 선택했지만, `mois`는 동기 ETL/CLI에서도 호출되기 때문에
-sync도 유지한다. 단, `mois`가 `kraddr-geo`를 호출하는 통합 경로는 `kraddr-geo`의 async 계약을 따라야
-하므로 검증 helper의 async 버전이 1급이다(ADR-002 참조).
+`kor-travel-geo`는 async-only를 선택했지만, `mois`는 동기 ETL/CLI에서도 호출되기 때문에
+sync도 유지한다. 단, `mois`가 `kor-travel-geo`를 호출하는 통합 경로는 `kor-travel-geo`의 async
+계약을 따라야 하므로 검증 helper의 async 버전이 1급이다(ADR-002 참조).
 
 ---
 
@@ -113,7 +115,7 @@ DB 브라우저(FastAPI + React) 코드는 `packages/mois-debug-ui/` 아래 별�
 `python-mois-debug-ui`로 둔다. 라이브러리 사용자는 `pip install python-mois-api`만으로 FastAPI, uvicorn,
 aiosqlite 등 운영 의존성을 받지 않는다.
 
-`python-kraddr-geo`의 프론트엔드 패키지 `kraddr-geo-ui`(Node.js)와 같은 패턴이다(kraddr-geo `ADR-013`).
+`kor-travel-geo`의 프론트엔드 패키지 `kor-travel-geo-ui`(Node.js, 내부 운영용)와 같은 패턴이다.
 디버그 UI는 내부망 전용으로 가정하고, 별도 인증 계층을 두지 않는다.
 
 ---
@@ -152,8 +154,8 @@ UPSERT 키는 `(service_slug, MNG_NO)`이고, `MNG_NO`가 비어 있는 행은 `
   `Wgs84Point`, `StationCoordinates`, `Coordinate`, `LocalDataRecord`, `PlaceRecord`,
   `AddressGeocodingProbe`, `GeocodingCandidate`). 외부 도메인 모델을 재노출하면 두 곳에서 갱신해야
   하는 비용이 생긴다.
-- `python-kraddr-geo`(ADR-002)와 통합할 때는 dict 또는 `GeocodingCandidate`로 변환된 결과를 받는다.
-  자세한 인터페이스는 `docs/integration-with-kraddr-geo.md`에 있다.
+- `kor-travel-geo`(구 `python-kraddr-geo`, ADR-002)와 통합할 때는 dict 또는 `GeocodingCandidate`로
+  변환된 결과를 받는다. 자세한 인터페이스는 `docs/integration-with-kor-travel-geo.md`에 있다.
 
 이 결정이 코드에 반영되는 방식:
 

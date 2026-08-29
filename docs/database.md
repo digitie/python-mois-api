@@ -161,7 +161,7 @@ with Session(engine) as session:
 ```
 
 TripMate의 KRMOIS source DB full update 주기는 1주일 1회입니다. 이 source DB는 폐업/취소 row를
-계속 보존하고, `python-krtour-map`은 영업중 row만 feature로 승격합니다.
+계속 보존하고, `kor-travel-map`(구 `python-krtour-map`)은 영업중 row만 feature로 승격합니다.
 
 ```powershell
 $env:MOIS_SQLITE_PATH = "F:\dev\python-mois-api\artifacts\mois.sqlite"

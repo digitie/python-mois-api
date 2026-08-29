@@ -18,7 +18,7 @@
 - 4인 전문 리뷰어 서브에이전트의 적대적 코드 리뷰로 발견·검증된 버그 수정: CSV 좌표 이상값으로 인한 전체 로드 중단, `LocalDataRecord.is_open`의 "영업정지" 오분류, DB 왕복 시 `PlaceRecord.data` 필드 유실, `iter_updated`/`get_updated`의 tz-aware datetime KST 미변환, `debug_request()`의 `service_key` 오류 메시지 유출, 게이트웨이 인증 오류(XML `cmmMsgHeader`) 무시, `iter_records` 무한 루프 가능성, 비동기 파일 클라이언트의 이벤트 루프 블로킹 등
 - GitHub Actions CI 워크플로(`lint`/`typecheck`/`test`) 추가
 - `python-kraddr-geo` → `kor-travel-geo` 리네임과 v2 API(`CandidateV2`) 반영: 깨져 있던
-  `tests/test_geocoding.py` 3건 수정(fake 지오코더가 `AddressGeocoder` 계약대로 dict를 반환하도록
-  변경), `docs/integration-with-kor-travel-geo.md` 신규 작성(GPL-3.0 라이선스 경계, v2 adapter 예시
-  포함), ADR-002/004/007/009와 `AGENTS.md`/`README.md`/`docs/repeated-mistakes.md`의 옛 이름·API
+  `tests/test_geocoding.py` 3건 수정(fake 지오코더가 `AddressGeocoder` 계약대로 `GeocodingCandidate`를
+  반환하도록 변경), `docs/integration-with-kor-travel-geo.md` 신규 작성(GPL-3.0 라이선스 경계, v2
+  adapter 예시 포함), ADR-002/004/007/009와 `AGENTS.md`/`README.md`/`docs/repeated-mistakes.md`의 옛 이름·API
   참조 정정

@@ -93,9 +93,9 @@
 - **테스트 fixture도 이 계약을 따라야 합니다.** `tests/test_geocoding.py`가 한동안 자체 dataclass
   (`ReverseCandidate`)를 반환하는 fake 지오코더를 썼는데, `_candidate_from_any`가
   `GeocodingCandidate`/`Mapping`만 받도록 좁혀진 뒤에도(ADR-009) fixture를 안 고쳐서 조용히 깨져
-  있었습니다(2026-08-29 발견). 지오코더 fixture는 항상 dict를 반환하게 만들고, `AddressGeocoder`
-  Protocol을 바꿀 때는 `tests/test_geocoding.py`와 `tests/test_no_kraddr_base.py`를 함께 실행해
-  회귀가 없는지 확인합니다.
+  있었습니다(2026-08-29 발견, `GeocodingCandidate`를 직접 반환하도록 수정). 지오코더 fixture는 항상
+  `GeocodingCandidate` 또는 dict를 반환하게 만들고, `AddressGeocoder` Protocol을 바꿀 때는
+  `tests/test_geocoding.py`와 `tests/test_no_kraddr_base.py`를 함께 실행해 회귀가 없는지 확인합니다.
 - **파트너 저장소 이름·API는 언제든 바뀔 수 있습니다.** `python-kraddr-geo`는 저장소명이
   `kor-travel-geo`로, 패키지가 `kraddr.geo` → `kortravelgeo`로, API가 `v1`(vworld 호환)에서
   `v2`(`CandidateV2`)로 바뀌었지만 이 문서와 ADR은 한동안 옛 이름/메서드(`nearest_road_address_xy`

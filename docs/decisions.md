@@ -164,3 +164,28 @@ UPSERT 키는 `(service_slug, MNG_NO)`이고, `MNG_NO`가 비어 있는 행은 `
 - `_candidate_from_any`는 `GeocodingCandidate` 또는 `Mapping`이 아닌 입력에 대해 `TypeError`를 던진다.
 - `tests/test_no_kraddr_base.py`가 `src/mois/` 전체에 `kraddr.base` 임포트가 없는지 회귀 방지로
   검증한다.
+
+---
+
+## ADR-010 — 카탈로그 기반 Streamlit 디버그 UI를 `examples/`에 예제 스크립트로 둔다
+
+- **일시**: 2026-08-29
+- **상태**: 채택
+
+195개 업종 OpenAPI를 하나씩 골라 호출/응답/가공 결과를 확인하는 가벼운 Streamlit 스크립트를
+`examples/streamlit_debug_ui.py`로 추가한다. `python-khoa-api`의 `examples/streamlit_debug_ui.py` +
+`src/khoa/debug.py`를 원형으로 다른 자매 저장소들과 함께 수렴 중인 표준 템플릿을 따른다.
+
+- `pyproject.toml`의 `[project.optional-dependencies]`에 `debug-ui = ["pandas>=2", "streamlit>=1.36"]`만
+  추가한다. `pip install python-mois-api`만 하는 라이브러리 사용자는 영향을 받지 않는다(ADR-007과
+  같은 동기).
+- `packages/mois-debug-ui/`(FastAPI + React SQLite DB 브라우저, ADR-007)와는 완전히 다른 도구다.
+  이 Streamlit 스크립트는 SQLite를 보지 않고, `MoisClient.debug_request()`로 OpenAPI 195종을 직접
+  호출·검증하는 용도다. 서로 대체 관계가 아니므로 `packages/mois-debug-ui/`는 그대로 둔다.
+- 파라미터 입력 폼은 `if function_name == ...` 같은 업종별 분기 없이 `get_api_catalog()`가 제공하는
+  `required_params`/`optional_params` 메타데이터로만 위젯을 만든다. 195개 업종은 동일한 요청
+  파라미터 계약(`serviceKey`/`pageNo`/`numOfRows`/`opnSfTeamCode`/`cond[FIELD::OP]`)을 공유하므로
+  `OpenApiService.required_params`/`optional_params` 기본값은 모든 업종에서 동일하다.
+- `jsonable`/`redact_sensitive`/`error_to_dict`/`save_fixture`는 모두 `src/mois/debug.py`,
+  `src/mois/fixtures.py`에 있는 기존 helper를 그대로 재사용한다(Streamlit 파일에 인라인 재구현하지
+  않는다).

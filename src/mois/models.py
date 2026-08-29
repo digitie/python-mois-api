@@ -66,7 +66,14 @@ class BusinessStatusCategory(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class OpenApiService:
-    """지방행정 인허가정보 OpenAPI 업종 명세."""
+    """지방행정 인허가정보 OpenAPI 업종 명세.
+
+    `required_params`/`optional_params`는 195개 업종이 공유하는 요청 파라미터
+    계약(공식 API 명세 기준)을 담는다. `serviceKey`/`pageNo`/`numOfRows`는 모든
+    호출에 항상 필요하므로 디버그 UI 전용 위젯으로 별도 처리하고 여기에는 넣지
+    않는다. `cond[FIELD::OP]` 조건 파라미터는 업종마다 값이 달라 별도 조건
+    빌더로 다룬다(`Condition`/`ConditionOperator`).
+    """
 
     index: int
     slug: str
@@ -79,6 +86,8 @@ class OpenApiService:
     history_url: str
     info_operation: str
     history_operation: str
+    required_params: tuple[str, ...] = ()
+    optional_params: tuple[str, ...] = ("opnSfTeamCode",)
 
 
 @dataclass(frozen=True, slots=True)

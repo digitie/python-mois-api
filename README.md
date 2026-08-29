@@ -56,12 +56,20 @@ README는 입구 역할만 합니다. 세부 절차와 결정은 아래 문서�
 pip install python-mois-api
 ```
 
-개발 중인 저장소에서는 다음처럼 설치합니다. 디버그 웹 UI는 별도 패키지이므로 필요할 때만 함께
-수정 가능 모드로 설치합니다.
+개발 중인 저장소에서는 다음처럼 설치합니다. DB 브라우저 디버그 웹 UI(`packages/mois-debug-ui/`,
+ADR-007)는 별도 패키지이므로 필요할 때만 함께 수정 가능 모드로 설치합니다.
 
 ```bash
 pip install -e ".[dev]"
 pip install -e packages/mois-debug-ui
+```
+
+195개 업종 OpenAPI를 카탈로그 기반으로 하나씩 호출해 보는 가벼운 Streamlit 디버그 UI는 별도
+optional dependency로 설치합니다.
+
+```bash
+pip install -e ".[debug-ui]"
+streamlit run examples/streamlit_debug_ui.py
 ```
 
 공공데이터포털에서 지방행정 인허가정보 API 활용신청 후 받은 디코딩 서비스키를 환경변수로 전달합니다.
@@ -127,6 +135,7 @@ python -m mypy src/mois
 | `src/mois/models.py`, `coords.py`, `convert.py`, `parser.py` | 응답/좌표 값 객체와 변환 |
 | `tests/` | 네트워크 없는 단위 테스트(fixture 재생). live 테스트는 `@pytest.mark.live` |
 | `tools/` | 문서/카탈로그 생성, 전체 localdata 적재 운영 스크립트 |
+| `examples/streamlit_debug_ui.py` | 카탈로그 기반 OpenAPI Streamlit 디버그 UI(`.[debug-ui]`, ADR-010) |
 | `packages/mois-debug-ui/` | 별도 패키지 DB 브라우저(FastAPI + React, ADR-007) |
 | `docs/` | ADR, API/파일 카탈로그, DB 구조, 통합 전략 문서 |
 

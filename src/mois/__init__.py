@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from .catalogs import (
+    SERVICE_KEY_ENV_NAME,
+    get_api_catalog,
+    get_api_catalog_entry,
     get_file_download,
     get_incremental_openapi_endpoint,
     get_openapi_service,
@@ -41,7 +44,7 @@ from .db import (
     upsert_place,
     upsert_places,
 )
-from .debug import DebugRun, jsonable, redact_sensitive
+from .debug import DebugRun, error_to_dict, jsonable, redact_sensitive
 from .exceptions import (
     MoisAuthError,
     MoisCatalogError,
@@ -101,6 +104,7 @@ PROVIDER_NAME = "python-mois-api"
 
 __all__ = [
     "PROVIDER_NAME",
+    "SERVICE_KEY_ENV_NAME",
     "AddressGeocoder",
     "AddressGeocodingProbe",
     "AddressGeocodingValidationResult",
@@ -155,6 +159,9 @@ __all__ = [
     "bulk_upsert_places",
     "compact_json_dumps",
     "create_sqlite_schema",
+    "error_to_dict",
+    "get_api_catalog",
+    "get_api_catalog_entry",
     "get_file_download",
     "get_incremental_openapi_endpoint",
     "get_openapi_service",

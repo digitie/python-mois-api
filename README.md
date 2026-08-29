@@ -1,27 +1,54 @@
 # python-mois-api
 
-`python-mois-api`는 행정안전부 지방행정 인허가정보를 Python에서 다루기 위한 라이브러리입니다. 설치 패키지 이름은 `python-mois-api`, import 패키지 이름은 `mois`입니다.
+![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)
+![MIT 라이선스](https://img.shields.io/badge/License-MIT-blue.svg)
+![Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)
 
-공공데이터포털 공지 `[행정안전부] 지방행정 인허가정보 Open API 호출 관련 참고자료 제공 (수정)`의 붙임1, 붙임2, 붙임3을 기준으로 195개 업종의 조회/이력조회 OpenAPI를 카탈로그화했고, `file.localdata.go.kr`의 인허가정보 파일 다운로드 195종도 같은 slug로 사용할 수 있게 했습니다.
+`python-mois-api`는 행정안전부 지방행정 인허가정보를 Python에서 다루기 위한 라이브러리입니다. 설치
+패키지 이름은 `python-mois-api`, import 패키지 이름은 `mois`입니다. 공공데이터포털 지방행정
+인허가정보 OpenAPI 195종과 `file.localdata.go.kr`의 인허가정보 파일 다운로드 195종을 같은 slug로
+카탈로그화해 동기/비동기 클라이언트로 제공합니다. 주소 정규화와 정/역 지오코딩은 담당하지 않고, 별도
+라이브러리 [`kor-travel-geo`](https://github.com/digitie/kor-travel-geo)(구 `python-kraddr-geo`,
+GPL-3.0-only)에 위임합니다(ADR-002).
 
-## 주요 기능
+다음 릴리스에 포함될 변경 사항은 [`CHANGELOG.md`](CHANGELOG.md)의 `[Unreleased]` 섹션에서 확인할 수
+있습니다.
 
-- 195개 업종 OpenAPI 조회와 이력조회 호출
-- httpx 기반 동기/asyncio 클라이언트(`MoisClient`, `MoisClient.aio()`)
-- 195개 업종 증분조회 편의 함수와 공공데이터포털 활용신청 링크 제공
-- `cond[필드::연산자]` 조건 파라미터 지원
-- API, 파일 다운로드, 응답변수 목록을 코드에서 조회
-- localdata CSV 다운로드와 Python 객체 스트리밍 로드
-- CP949 CSV, 날짜/시각, 숫자, EPSG:5174 좌표 자동 변환
-- EPSG:5174 좌표를 WGS84 `(lat, lon)`로 변환하고 좌표 값 객체 제공
-- SQLite/SpatiaLite 기반 로컬 DB 적재 모델과 DB 브라우저 서버 제공
-- localdata source DB 주기 갱신 helper와 영업중/폐업·취소 row 조회 iterator 제공
-- 디버그 fixture JSON을 외부 호출 없이 재생하는 pytest 실행 구조 제공
-- 네트워크 없는 단위 테스트와 실제 호출용 live 테스트 분리
+## 제공 표면
 
-## 문서 언어 원칙
+| 표면 | 진입점 | 설명 |
+|------|--------|------|
+| OpenAPI 클라이언트 | `from mois import MoisClient` | 195개 업종 조회/이력조회/증분조회, 동기와 `MoisClient.aio()` 비동기 |
+| 파일 다운로드 클라이언트 | `from mois import LocalDataFileClient` | localdata 인허가정보 파일 195종 다운로드와 스트리밍 로드 |
+| SQLite/SpatiaLite 적재 | `from mois import create_sqlite_schema, upsert_places` | 마스터-디테일 + JSON 컬럼 로컬 DB 모델과 증분 동기화 helper |
+| 지오코딩 검증 helper | `validate_address_geocoding_probe[_async]` | `kor-travel-geo` 결과와 자체 좌표를 비교만 함(ADR-002) |
+| DB 브라우저(별도 패키지) | `python -m mois_debug_ui.backend` | 내부 운영용 FastAPI + React 콘솔(`packages/mois-debug-ui`, ADR-007) |
 
-사용자 대상 문서는 한국어로 작성합니다. 패키지명, 함수명, 환경변수, URL, 표준 기술명처럼 코드나 공식 명칭으로 식별해야 하는 값은 원문 표기를 유지합니다.
+## 먼저 읽을 문서
+
+README는 입구 역할만 합니다. 세부 절차와 결정은 아래 문서를 정본으로 봅니다.
+
+| 필요 정보 | 문서 |
+|-----------|------|
+| 설계 의사결정(ADR) | [`docs/decisions.md`](docs/decisions.md) |
+| `kor-travel-geo`와의 통합 전략 | [`docs/integration-with-kor-travel-geo.md`](docs/integration-with-kor-travel-geo.md) |
+| API 및 파일 다운로드 목록 | [`docs/api-list.md`](docs/api-list.md) |
+| 증분 OpenAPI 목록과 신청 링크 | [`docs/incremental-openapi.md`](docs/incremental-openapi.md) |
+| 파일 다운로드와 로드 API | [`docs/file-downloads.md`](docs/file-downloads.md) |
+| 타입과 좌표 값 객체 | [`docs/types-and-coordinates.md`](docs/types-and-coordinates.md) |
+| SQLite/SpatiaLite DB 적재 | [`docs/database.md`](docs/database.md) |
+| DB 구조 정리 | [`docs/db-structure.md`](docs/db-structure.md) |
+| SQLite/SpatiaLite 전환 상세 보고서 | [`docs/sqlite-spatialite-migration-report.md`](docs/sqlite-spatialite-migration-report.md) |
+| JSON 필드 → 컬럼 승격 기준 | [`docs/json-field-promotion.md`](docs/json-field-promotion.md) |
+| PostgreSQL/PostGIS 설계 이력(과거, 비현행) | [`docs/postgresql-postgis-history.md`](docs/postgresql-postgis-history.md) |
+| DB 브라우저 웹앱 | [`docs/db-browser.md`](docs/db-browser.md) |
+| 응답변수 매핑표 | [`docs/response-fields.md`](docs/response-fields.md) |
+| 관광 관련 인허가 데이터 선별 목록 | [`docs/tourism-license-data.md`](docs/tourism-license-data.md) |
+| 여행 플래너 활용 아키텍처 | [`docs/travel-planner-architecture.md`](docs/travel-planner-architecture.md) |
+| 구현 메모 | [`mois-api.md`](mois-api.md) |
+| 반복 실수 방지 | [`docs/repeated-mistakes.md`](docs/repeated-mistakes.md) |
+| 테스트 기준 | [`docs/testing.md`](docs/testing.md) |
+| 문제 해결 | [`docs/troubleshooting.md`](docs/troubleshooting.md) |
 
 ## 설치
 
@@ -29,223 +56,45 @@
 pip install python-mois-api
 ```
 
-개발 중인 저장소에서는 다음처럼 설치합니다. 디버그 웹 UI는 별도 패키지이므로 필요할 때 함께 수정 가능 모드로 설치합니다.
+개발 중인 저장소에서는 다음처럼 설치합니다. 디버그 웹 UI는 별도 패키지이므로 필요할 때만 함께
+수정 가능 모드로 설치합니다.
 
 ```bash
 pip install -e ".[dev]"
 pip install -e packages/mois-debug-ui
 ```
 
-## OpenAPI 사용
-
-공공데이터포털에서 지방행정 인허가정보 API 활용신청 후 받은 디코딩 서비스키를 사용합니다.
-
-```python
-from mois import MoisClient, PROVIDER_NAME
-
-print(PROVIDER_NAME)  # python-krmois-api
-
-with MoisClient(api_key="공공데이터포털_서비스키") as client:
-    items = client.get(
-        "hospitals",
-        conditions={"DAT_UPDT_PNT": ("GTE", "20260301000000")},
-    )
-
-for item in items:
-    print(item["MNG_NO"], item.get("BPLC_NM"))
-```
-
-비동기 호출은 `python-krheritage-api`와 같은 형태로 `aio()`를 사용합니다.
-
-```python
-import asyncio
-
-from mois import MoisClient
-
-
-async def main():
-    async with MoisClient.aio(api_key="공공데이터포털_서비스키") as client:
-        items = await client.get_hospitals(num_of_rows=10)
-        print(items[0].get("BPLC_NM"))
-
-
-asyncio.run(main())
-```
-
-증분 동기화와 특정 시점 이력조회는 별도 편의 메서드를 사용할 수 있습니다.
-
-```python
-from datetime import datetime
-from zoneinfo import ZoneInfo
-
-with MoisClient.from_env() as client:
-    changed = client.get_updated(
-        "hospitals",
-        datetime(2026, 5, 5, 0, 0, 0, tzinfo=ZoneInfo("Asia/Seoul")),
-    )
-    source_changed = client.get_updated("hospitals", "20260505000000", source_modified=True)
-    history_at = client.get_history_at("hospitals", "20260101", org_code="3000000")
-```
-
-환경변수도 사용할 수 있습니다.
+공공데이터포털에서 지방행정 인허가정보 API 활용신청 후 받은 디코딩 서비스키를 환경변수로 전달합니다.
 
 ```bash
 export DATA_GO_KR_SERVICE_KEY="공공데이터포털_서비스키"
 ```
 
 ```python
+from mois import MoisClient
+
 client = MoisClient.from_env()
 ```
 
-## 파일 다운로드와 로드
+## 예제
 
 ```python
-from mois import LocalDataFileClient
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-with LocalDataFileClient() as files:
-    records = files.load("hospitals")
+from mois import MoisClient
 
-first = records[0]
-print(first.business_name)
-print(first.license_date)
-print(first.updated_at)
-print(first.coordinates.lat, first.coordinates.lon)
-```
-
-대용량 업종은 전체 목록을 만들지 않는 스트리밍 API를 사용합니다.
-
-```python
-with LocalDataFileClient() as files:
-    for record in files.iter_hospitals():
-        print(record.management_number, record.business_name)
-```
-
-파일 다운로드도 async 클라이언트를 제공합니다.
-
-```python
-import asyncio
-
-from mois import LocalDataFileClient
-
-
-async def main():
-    async with LocalDataFileClient.aio() as files:
-        local_records = await files.load_file("artifacts/localdata/hospitals_info.bin", slug="hospitals")
-        print(local_records[0].management_number)
-
-        async for record in files.iter_hospitals():
-            print(record.management_number, record.business_name)
-            break
-
-
-asyncio.run(main())
-```
-
-CSV 원본의 `좌표정보(X)`, `좌표정보(Y)`는 EPSG:5174로 보존하고, `WGS84_LAT`, `WGS84_LON`과 `Coordinate` 객체를 추가합니다. 좌표 순서는 KATEC가 `(x, y)`, WGS84 일반 tuple이 `(lat, lon)`입니다.
-
-## SQLite/SpatiaLite DB 적재
-
-공통 검색 필드와 반복 필터가 되는 JSON 필드는 `mois_place_master`에, 나머지 업종별 특수 필드는 `mois_place_detail`의 SQLite JSON 컬럼에 저장합니다. 195개 다운로드 파일 12,046,780건을 다시 훑어 상세 영업상태, 업태/세부업종, 판매 방식, 의료·숙박 규모 필드를 컬럼으로 승격했습니다.
-
-```python
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
-
-from mois import LocalDataFileClient, create_sqlite_schema, upsert_places
-
-engine = create_engine("sqlite:///artifacts/mois.sqlite")
-create_sqlite_schema(engine)
-
-with LocalDataFileClient() as files:
-    records = files.load_hospitals()
-
-with Session(engine) as session:
-    upsert_places(session, records, commit=True)
-```
-
-TripMate 계열 feature 적재에서는 이 DB가 KRMOIS raw/localdata source-of-record입니다.
-주기 갱신은 `sync_localdata_source_db()`를 사용하고, feature 승격 대상은
-`iter_open_place_records()`로 읽습니다. 폐업/취소 업체만 따로 확인해야 할 때는
-`iter_closed_place_records()`를 사용합니다.
-
-```python
-from sqlalchemy.orm import Session
-
-from mois import (
-    LocalDataFileClient,
-    iter_closed_place_records,
-    iter_open_place_records,
-    sync_localdata_source_db,
-)
-
-file_client = LocalDataFileClient()
-
-with Session(engine) as session:
-    sync_localdata_source_db(
-        session,
-        file_client,
-        service_slugs=("hospitals", "pharmacies", "tourist_accommodations"),
-        sync_kind="localdata_full",
-        commit=True,
+with MoisClient.from_env() as client:
+    changed = client.get_updated(
+        "hospitals",
+        datetime(2026, 5, 5, 0, 0, 0, tzinfo=ZoneInfo("Asia/Seoul")),
     )
-
-    open_places = iter_open_place_records(session, service_slugs=("hospitals",))
-    closed_places = iter_closed_place_records(session, service_slugs=("hospitals",))
+    for item in changed:
+        print(item["MNG_NO"], item.get("BPLC_NM"))
 ```
 
-TripMate의 full source DB 갱신 주기는 1주일 1회로 둡니다. 이 라이브러리는 source DB를
-업데이트하고 폐업/취소 row도 보존하지만, `kor-travel-map`(구 `python-krtour-map`)은 영업중 row만
-feature로 승격하고 폐업/취소 feature는 삭제합니다.
-
-이미 내려받은 195개 파일을 모두 적재하려면 운영 스크립트를 사용합니다.
-
-```powershell
-$env:MOIS_SQLITE_PATH = "F:\dev\python-mois-api\artifacts\mois.sqlite"
-python -m tools.load_all_localdata_to_sqlite --output-dir artifacts/localdata --replace-slug
-```
-
-## DB 브라우저
-
-```powershell
-$env:MOIS_SQLITE_PATH = "F:\dev\python-mois-api\artifacts\mois.sqlite"
-$env:MOIS_WEB_PORT = "8611"
-python -m mois_debug_ui.backend
-```
-
-기본 API는 `http://127.0.0.1:8611/api`입니다. 프론트엔드는 `packages/mois-debug-ui/frontend`의 Vite 앱이며 개발 URL은 `http://localhost:8610`입니다.
-
-## 책임 경계
-
-`python-mois-api`는 행정안전부 인허가 데이터(OpenAPI + localdata 파일)에 집중합니다. 주소 정규화와
-정/역 지오코딩, 도로명주소 전자지도 적재는 별도 라이브러리
-[`kor-travel-geo`](https://github.com/digitie/kor-travel-geo)(구 `python-kraddr-geo`,
-GPL-3.0-only)가 담당합니다. `mois`는 그 소스를 import하지 않고
-`validate_address_geocoding_probe` / `validate_address_geocoding_probe_async`로 양쪽 결과를
-비교만 합니다(ADR-002). 통합 방법은
-[`docs/integration-with-kor-travel-geo.md`](docs/integration-with-kor-travel-geo.md),
-설계 의사결정은 [`docs/decisions.md`](docs/decisions.md)에 있습니다.
-
-디버그 웹 UI는 별도 패키지 `python-mois-debug-ui`로 분리되어 있어(ADR-007), 라이브러리만 쓰는 사용자는
-FastAPI/uvicorn/aiosqlite를 받지 않습니다.
-
-## 문서 목록
-
-- [의사결정 기록(ADR)](docs/decisions.md)
-- [kor-travel-geo와의 통합 전략](docs/integration-with-kor-travel-geo.md)
-- [API 및 파일 다운로드 목록](docs/api-list.md)
-- [증분 OpenAPI 목록과 신청 링크](docs/incremental-openapi.md)
-- [파일 다운로드와 로드 API](docs/file-downloads.md)
-- [타입과 좌표 값 객체](docs/types-and-coordinates.md)
-- [SQLite/SpatiaLite DB 적재](docs/database.md)
-- [DB 구조 정리](docs/db-structure.md)
-- [DB 브라우저 웹앱](docs/db-browser.md)
-- [응답변수 매핑표](docs/response-fields.md)
-- [관광 관련 인허가 데이터 선별 목록](docs/tourism-license-data.md)
-- [여행 플래너 활용 아키텍처](docs/travel-planner-architecture.md)
-- [구현 메모](mois-api.md)
-- [반복 실수 방지](docs/repeated-mistakes.md)
-- [테스트 기준](docs/testing.md)
-- [문제 해결](docs/troubleshooting.md)
+이 예제는 `hospitals` 업종의 동기 증분조회만 다룹니다. 비동기 호출, 파일 다운로드, SQLite 적재, DB
+브라우저는 위 "먼저 읽을 문서" 표의 각 문서를 참고하십시오.
 
 ## 검증
 
@@ -255,7 +104,8 @@ python -m ruff check .
 python -m mypy src/mois
 ```
 
-기본 테스트는 실제 API를 호출하지 않습니다. 실제 호출 테스트를 추가할 때는 `@pytest.mark.live`를 붙이고 `DATA_GO_KR_SERVICE_KEY`가 있을 때만 실행되게 합니다.
+기본 테스트는 실제 API를 호출하지 않습니다. 실제 호출 테스트를 추가할 때는 `@pytest.mark.live`를
+붙이고 `DATA_GO_KR_SERVICE_KEY`가 있을 때만 실행되게 합니다.
 
 ## 참고 출처
 
@@ -265,6 +115,34 @@ python -m mypy src/mois
 - 붙임3. 지방행정 인허가정보의 제공항목(응답변수) 매핑테이블_20260407수정.xlsx
 - https://file.localdata.go.kr/file/hospitals/info
 
-## 라이선스
+## 디렉터리 개요
 
-MIT
+| 경로 | 역할 |
+|------|------|
+| `src/mois/client.py` | `MoisClient`/`AsyncMoisClient` OpenAPI 호출 |
+| `src/mois/files.py` | `LocalDataFileClient`/`AsyncLocalDataFileClient` 파일 다운로드/로드 |
+| `src/mois/catalog.py` | 195개 업종 OpenAPI/파일 카탈로그(자동 생성 기준, ADR-006) |
+| `src/mois/db.py` | SQLite/SpatiaLite 적재 모델과 upsert/iterator(ADR-008) |
+| `src/mois/geocoding.py` | `validate_address_geocoding_probe[_async]` 검증 helper(ADR-002) |
+| `src/mois/models.py`, `coords.py`, `convert.py`, `parser.py` | 응답/좌표 값 객체와 변환 |
+| `tests/` | 네트워크 없는 단위 테스트(fixture 재생). live 테스트는 `@pytest.mark.live` |
+| `tools/` | 문서/카탈로그 생성, 전체 localdata 적재 운영 스크립트 |
+| `packages/mois-debug-ui/` | 별도 패키지 DB 브라우저(FastAPI + React, ADR-007) |
+| `docs/` | ADR, API/파일 카탈로그, DB 구조, 통합 전략 문서 |
+
+## 문서와 기여 규칙
+
+- Markdown 문서는 한국어로 작성합니다. 코드 식별자, API 필드명, 명령어, URL, 제공자 원문 용어만
+  원문 표기를 유지합니다.
+- 작업 전 [`AGENTS.md`](AGENTS.md)와 [`docs/decisions.md`](docs/decisions.md)의 관련 ADR을 확인합니다.
+- OpenAPI/파일 카탈로그는 `tools/generate_docs.py`로 `src/mois/catalog.py` 기준으로만 갱신합니다(손
+  복사 금지, ADR-006).
+- 사용자 가시 변경은 [`CHANGELOG.md`](CHANGELOG.md)에 기록합니다.
+
+## 법적 고지
+
+MIT 라이선스는 이 저장소에 포함된 소스 코드와 문서에만 적용됩니다. 자세한 조건은
+[`LICENSE`](LICENSE)를 확인하십시오. 행정안전부 지방행정 인허가정보 OpenAPI와
+`file.localdata.go.kr` 파일 다운로드는 공공데이터포털/행정안전부가 정한 이용약관과 재배포 조건을
+따르며, 이 라이브러리는 그 데이터를 다루는 기술 도구일 뿐 데이터의 정확성이나 법적 효력을 보장하지
+않습니다.

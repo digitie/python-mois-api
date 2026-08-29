@@ -1,5 +1,11 @@
 # 변경 이력
 
+이 문서는 [Keep a Changelog](https://keepachangelog.com/) 형식을 따른다.
+
+## [Unreleased]
+
+- (다음 릴리스로 예정된 변경 없음)
+
 ## 0.1.0
 
 - 지방행정 인허가정보 OpenAPI 195개 업종과 이력조회 195개 URL 카탈로그 추가

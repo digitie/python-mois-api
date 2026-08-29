@@ -1,9 +1,9 @@
 # 의사결정 기록 (ADR)
 
 이 저장소의 구조와 외부 의존을 좌우하는 의사결정을 ADR 형태로 누적한다. 형식은
-[`python-kraddr-geo`](https://github.com/digitie/python-kraddr-geo)의 `decisions.md`와 같다.
-새로운 결정은 번호를 늘리고, 취소된 결정은 `Status: superseded by ADR-NNN`으로 표기만 한다
-(본문은 보존).
+[`kor-travel-geo`](https://github.com/digitie/kor-travel-geo)(구 `python-kraddr-geo`)의
+`decisions.md`와 같다. 새로운 결정은 번호를 늘리고, 취소된 결정은 `Status: superseded by ADR-NNN`으로
+표기만 한다(본문은 보존).
 
 ---
 

@@ -1,22 +1,57 @@
 # 작업 지침
 
+## 목표
+
+`python-mois-api`(GitHub 저장소 이름, Python import `mois`)는 행정안전부 지방행정 인허가정보 OpenAPI
+195종과 `file.localdata.go.kr` 파일 다운로드 195종을 하나의 동기/비동기 클라이언트 인터페이스로 감싸는
+**데이터 제공 라이브러리**다. 주소 정규화·정/역 지오코딩은 담당하지 않고 별도 라이브러리
+[`kor-travel-geo`](https://github.com/digitie/kor-travel-geo)(구 `python-kraddr-geo`, GPL-3.0-only)에
+위임하며, `mois`는 그 소스를 import하지 않고 검증 helper(`validate_address_geocoding_probe[_async]`,
+ADR-002)로만 연결한다. 디버그 웹 UI는 별도 패키지 `python-mois-debug-ui`(`packages/mois-debug-ui/`)로
+분리되어 있다(ADR-007).
+
+## Think Before Coding
+
+- 요청이 모호할 때는 해석을 조용히 정하지 말 것
+- 중요한 가정은 숨기지 말고 드러낼 것
+- 해석에 따라 구현 방향이 크게 달라지면 그 차이를 먼저 표면화할 것
+- 안전하게 진행하기 어려울 정도로 혼란스러우면 추측하지 말고 확인할 것
+
+## Simplicity First
+
+- 요청을 완전히 해결하는 최소한의 코드만 작성할 것
+- 요청되지 않은 기능을 추가하지 말 것
+- 일회성 용도를 위해 추상화를 만들지 말 것
+- 구체적인 필요 없이 설정 가능성이나 유연성을 늘리지 말 것
+- 구현이 문제에 비해 커졌다고 느껴지면 줄일 것
+
+## Surgical Changes
+
+- 요청을 처리하는 데 필요한 코드만 변경할 것
+- 작업이 요구하지 않으면 주변 로직까지 다시 쓰지 말 것
+- 관련 없는 코드의 포맷, 이름, 스타일을 건드리지 말 것
+- 사용자가 더 넓은 변경을 원한 것이 아니라면 기존 패턴을 맞출 것
+- 관련 없는 문제를 발견하면 패치에 섞지 말고 따로 언급할 것
+
+## Goal-Driven Execution
+
+- 모호한 요청을 구체적이고 검증 가능한 결과로 바꿀 것
+- 버그 수정은 재현 없이 바로 신뢰하지 말 것
+- 리팩터링은 동작 보존을 전제로 전후 기대를 확인할 것
+- 넓고 막연한 점검보다 목적이 분명한 검증을 선호할 것
+- 완전한 검증이 불가능하면 무엇이 아직 미검증인지 밝힐 것
+
+## Practical Bias
+
+- 비단순 작업에서는 성급함보다 신중함을 우선할 것
+- 변경 내역은 리뷰 가능한 범위와 요청 범위에 가깝게 유지할 것
+- 아주 단순하고 명백한 한 줄 작업은 과하게 무겁게 다루지 말 것
+
 ## 문서 언어 정책
 
 이 저장소의 모든 Markdown/RST 문서와 Python docstring은 한국어로 작성한다. 공식 API 필드명, 코드 식별자,
 명령어, URL, 제공자 원문처럼 그대로 보존해야 하는 값만 영어를 유지한다. 새 문서나 기존 문서를 수정할 때도
 이 규칙을 우선한다.
-
-## 역할과 경계
-
-이 저장소(GitHub `python-mois-api`, Python `mois`)는 행정안전부 지방행정 인허가정보 OpenAPI 195종과
-localdata 파일 다운로드 195종을 다루는 **데이터 제공 라이브러리**다. 주소 정규화·정/역 지오코딩은
-[`kor-travel-geo`](https://github.com/digitie/kor-travel-geo)(구 `python-kraddr-geo`, GPL-3.0-only)가
-담당하며, `mois`는 그 소스를 import하지 않고
-`validate_address_geocoding_probe[_async]`로 양쪽 결과를 비교만 한다(ADR-002,
-[`docs/decisions.md`](docs/decisions.md)).
-
-디버그 웹 UI는 별도 패키지 `python-mois-debug-ui`(`packages/mois-debug-ui/`)로 운영한다(ADR-007).
-라이브러리 사용자는 FastAPI/uvicorn/aiosqlite를 받지 않는다.
 
 ## 식별자 (혼동 방지)
 
@@ -27,21 +62,28 @@ localdata 파일 다운로드 195종을 다루는 **데이터 제공 라이브�
 | 환경변수 prefix | `MOIS_*` |
 | SQLite DB 경로 | `MOIS_SQLITE_PATH` |
 | 서비스키 환경변수 | `DATA_GO_KR_SERVICE_KEY` |
-| Provider 이름 | `python-krmois-api` |
+| Provider 이름 (`PROVIDER_NAME`) | `python-mois-api` |
 
-## 개발 환경 정책 (PC, WSL)
+## 절대 하지 말 것 (DO NOT)
 
-PC 개발은 **WSL ext4** 위에서 수행한다. NTFS 마운트에서 직접 `git`/`pip`/`uvicorn`을 실행하지 않는다
-— 파일 권한, inotify, 심볼릭 링크, 대량 I/O 성능이 모두 저하된다.
+1. **단순 전달용 래퍼 금지** — downstream이 직접 사용할 public client, typed model, enum, helper를
+   제공한다. 단순 전달용 wrapper, 장기 호환 alias, 임시 facade, 게이트웨이는 만들지 않는다(ADR-003).
+2. **지오코딩 재구현 금지** — 주소 정규화·정/역 지오코딩은 `kor-travel-geo`(구 `python-kraddr-geo`)가
+   책임진다. `mois`는 검증 helper만 제공하고 그 소스를 import하지 않는다(ADR-002, GPL-3.0).
+3. **sync/async 한쪽만 추가 금지** — 신규 공개 진입점은 `MoisClient`/`AsyncMoisClient`,
+   `LocalDataFileClient`/`AsyncLocalDataFileClient`,
+   `validate_address_geocoding_probe`/`validate_address_geocoding_probe_async`처럼 짝으로 유지한다
+   (ADR-004).
+4. **`python-kraddr-base` 의존 금지** — `pyproject.toml`에 `python-kraddr-base`를 추가하지 않고,
+   소스에서 `from kraddr.base import …` / `import kraddr.base`를 작성하지 않는다. 외부 라이브러리 결과는
+   `GeocodingCandidate` 또는 dict으로 변환해 전달한다(ADR-009).
+5. **API 목록 손 복사 금지** — `src/mois/catalog.py`와 `tools/generate_docs.py`를 기준으로 관리한다.
+   목록을 직접 손으로 옮기지 않는다(ADR-006).
 
-- **코드/가상환경**: ext4 (`~/dev/python-mois-api/`)
-- **데이터(`artifacts/`)**: NTFS의 프로젝트 디렉토리 아래에 둔다. 작업 디렉토리에는 심볼릭 링크만 두거나
-  절대경로로 참조한다.
-- **카피 정책**: 작업이 완료되면 ext4 → NTFS의 프로젝트 디렉토리로 카피한다. Git은 ext4 쪽이
-  source of truth.
-- **에이전트별 고정 worktree**: ChatGPT Codex는 `F:\dev\python-mois-api-codex`, Claude Code는 `F:\dev\python-mois-api-claude`, Google Antigravity 2.0은 `F:\dev\python-mois-api-antigravity`를 사용한다. 작업마다 브랜치만 새로 만들고, CodeGraph는 worktree마다 1회 `codegraph init -i` 후 `codegraph sync`로 유지한다(ADR-010).
+세부 데이터 처리 규칙(좌표 보존, 빈 값 처리, localdata 다운로드 순서, flat table 금지 등)은
+`SKILL.md` §4에 있다.
 
-작업 전에 반드시 다음을 읽는다:
+## 작업 전 필독
 
 1. `README.md` — 프로젝트 개요와 빠른 시작
 2. `SKILL.md` — DO NOT 룰, 자주 묻는 작업, 도메인 어휘
@@ -52,58 +94,7 @@ PC 개발은 **WSL ext4** 위에서 수행한다. NTFS 마운트에서 직접 `g
 
 ## 지시 우선순위
 
-1. 사용자 요청
-2. 이 `AGENTS.md`
-3. `SKILL.md`
-4. [`docs/decisions.md`](docs/decisions.md)의 ADR
-5. [`docs/integration-with-kor-travel-geo.md`](docs/integration-with-kor-travel-geo.md),
-   [`docs/travel-planner-architecture.md`](docs/travel-planner-architecture.md),
-   [`docs/db-structure.md`](docs/db-structure.md),
-   [`docs/repeated-mistakes.md`](docs/repeated-mistakes.md)
-6. `README.md`와 나머지 `docs/`
-7. 기존 코드와 테스트
-8. 최소한의, 되돌릴 수 있는 가정
-
-## 절대 하지 말 것 (DO NOT)
-
-1. **단순 전달용 래퍼 금지** — downstream이 직접 사용할 public client, typed model, enum, helper를
-   제공한다. 단순 전달용 wrapper, 장기 호환 alias, 임시 facade를 만들지 않는다(ADR-003).
-2. **지오코딩 재구현 금지** — 주소 정규화·정/역 지오코딩은 `kor-travel-geo`(구 `python-kraddr-geo`)가
-   책임진다. `mois`는 검증 helper만 제공하고 그 소스를 import하지 않는다(ADR-002, GPL-3.0).
-3. **sync/async 한쪽만 추가 금지** — 신규 공개 진입점은 `MoisClient`/`AsyncMoisClient`,
-   `LocalDataFileClient`/`AsyncLocalDataFileClient`,
-   `validate_address_geocoding_probe`/`validate_address_geocoding_probe_async`처럼 짝으로 유지한다
-   (ADR-004).
-4. **API 목록 손 복사 금지** — `src/mois/catalog.py`와 `tools/generate_docs.py`를 기준으로 관리한다.
-   목록을 직접 손으로 옮기지 않는다(ADR-006).
-5. **좌표 원본 덮어쓰기 금지** — EPSG:5174 원본은 보존하고 WGS84 `(lat, lon)`을 추가한다. float 네 개를
-   외부로 흘리지 말고 `KatecPoint`/`Wgs84Point`/`StationCoordinates`로 잠근다(ADR-005).
-6. **빈 값을 0으로 치환 금지** — 의미 없는 빈 문자열은 `None`이다. 숫자 0으로 바꾸지 않는다.
-7. **외부 API 키 평문 커밋 금지** — `DATA_GO_KR_SERVICE_KEY`는 환경변수로만 전달. `.env`는
-   `.gitignore`에 포함.
-8. **localdata 다운로드 순서 무시 금지** — 안내 페이지 GET → 다운로드 제한 확인 → 실제 다운로드 순서를
-   지킨다. URL만 바로 호출하면 403.
-9. **삭제 응답변수 기본 포함 금지** — 붙임3의 삭제 항목은 기본 목록에서 제외한다.
-10. **원본 CSV/ZIP을 문서·fixture 경로에 두기 금지** — `artifacts/` 같은 gitignore 대상 경로에
-    저장한다.
-11. **네트워크 사용 기본 테스트 금지** — 기본 테스트는 네트워크를 사용하지 않는다. live 테스트는
-    `@pytest.mark.live`로 분리.
-12. **전체 flat table 금지** — 195개 업종의 특수 칼럼을 하나의 flat table에 모두 펼치지 않는다. 공통
-    필드는 마스터, 특수 필드는 JSON(ADR-008).
-13. **`python-kraddr-base` 의존 금지** — `pyproject.toml`에 `python-kraddr-base`를 추가하지 않고,
-    소스에서 `from kraddr.base import …` / `import kraddr.base`를 작성하지 않는다. `PlaceCoordinate`,
-    `Address`, `LatLon`, `JibunAddress`, `RoadNameAddress` 같은 `kraddr.base` 값 객체를 인자/반환
-    타입으로 받지 않는다. 외부 라이브러리 결과는 `GeocodingCandidate` 또는 dict으로 변환해 전달한다
-    (ADR-009).
-
-## 제공자 API 사용 원칙
-
-- 외부 API 관련 작업은 단순 전달용 래퍼/어댑터/게이트웨이 지양 원칙을 먼저 확인하고 문서/코드에 반영한 뒤
-  진행한다(ADR-003).
-- downstream(`kor-travel-map`(구 `python-krtour-map`), TripMate 등)에서 필요한 endpoint, pagination, cursor, exception,
-  raw payload 계약이 부족하면 이 저장소의 public API를 먼저 안정화한다.
-- 검증된 다른 라이브러리의 구현이 더 적합하면 wrapper로 감싸지 말고 라이선스와 출처를 확인한 뒤 프로젝트
-  코드에 직접 반영한다.
+사용자 요청 > `AGENTS.md` > `README.md`/`docs/`와 기존 코드·테스트.
 
 ## 작업 후 체크리스트
 

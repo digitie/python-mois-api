@@ -6,12 +6,16 @@ from __future__ import annotations
 class MoisError(Exception):
     """mois 공통 예외."""
 
+    def __init__(self, message: str, *, result_code: str | None = None) -> None:
+        super().__init__(message)
+        self.result_code = result_code
+
 
 class MoisAuthError(MoisError):
     """인증키가 없거나 거부된 경우."""
 
 
-class MoisRequestError(MoisError):
+class MoisRequestError(MoisError, ValueError):
     """요청 파라미터, HTTP 4xx, 제한 초과 등 클라이언트 계열 오류."""
 
 

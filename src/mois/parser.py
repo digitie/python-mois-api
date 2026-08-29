@@ -10,6 +10,8 @@ from typing import Any
 from .exceptions import MoisAuthError, MoisParseError, MoisRequestError, MoisServerError
 from .models import MoisResponse
 
+_MAX_XML_RESPONSE_LENGTH = 10_000_000
+
 
 def parse_openapi_response(response: Any, *, page_no: int, num_of_rows: int) -> MoisResponse:
     """HTTP 응답 객체를 JSON/XML 형식에 맞춰 파싱합니다."""
@@ -86,6 +88,8 @@ def _parse_json_payload(payload: Any, *, page_no: int, num_of_rows: int) -> Mois
 
 
 def _parse_xml_payload(text: str, *, page_no: int, num_of_rows: int) -> MoisResponse:
+    if len(text) > _MAX_XML_RESPONSE_LENGTH:
+        raise MoisParseError("XML 응답이 허용 크기를 초과합니다")
     try:
         root = ET.fromstring(text)
     except ET.ParseError as exc:
@@ -93,6 +97,13 @@ def _parse_xml_payload(text: str, *, page_no: int, num_of_rows: int) -> MoisResp
     header = root.find(".//header")
     if header is not None:
         _raise_for_result(_child_text(header, "resultCode"), _child_text(header, "resultMsg"))
+    else:
+        cmm_header = root.find(".//cmmMsgHeader")
+        if cmm_header is not None:
+            _raise_for_result(
+                _child_text(cmm_header, "returnReasonCode"),
+                _child_text(cmm_header, "returnAuthMsg"),
+            )
     body_element = root.find(".//body")
     body = body_element if body_element is not None else root
     items = [_xml_item_to_dict(item) for item in body.findall(".//item")]
@@ -109,7 +120,7 @@ def _extract_items(body: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     source = body.get("items", body.get("item", body.get("data", [])))
     if isinstance(source, Mapping) and "item" in source:
         source = source["item"]
-    if source is None:
+    if source is None or (isinstance(source, str) and not source.strip()):
         return []
     if isinstance(source, Mapping):
         return [source]
@@ -130,12 +141,13 @@ def _child_text(element: ET.Element, name: str) -> str | None:
 def _raise_for_result(code: Any, message: Any) -> None:
     if code in (None, "", "00", "0"):
         return
+    result_code = str(code)
     text = f"OpenAPI resultCode={code}: {message or ''}".strip()
-    if str(code) in {"20", "30", "31"}:
-        raise MoisAuthError(text)
-    if str(code) in {"04", "99"}:
-        raise MoisServerError(text)
-    raise MoisRequestError(text)
+    if result_code in {"20", "21", "30", "31", "32", "33"}:
+        raise MoisAuthError(text, result_code=result_code)
+    if result_code in {"04", "99"}:
+        raise MoisServerError(text, result_code=result_code)
+    raise MoisRequestError(text, result_code=result_code)
 
 
 def _int_or_none(value: Any) -> int | None:

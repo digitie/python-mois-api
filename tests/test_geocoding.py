@@ -87,7 +87,7 @@ class AsyncFakeGeocoder:
                 x=953243.1,
                 y=1954023.1,
                 road_address="서울특별시 종로구 자하문로 96",
-                source="kraddr-geo",
+                source="kor-travel-geo",
             )
         ]
 
@@ -102,13 +102,13 @@ class AsyncFakeGeocoder:
             x=x,
             y=y,
             road_address="서울특별시 종로구 자하문로 96",
-            source="kraddr-geo",
+            source="kor-travel-geo",
             distance_m=0.0,
             raw={},
         )
 
 
-def test_validate_async_supports_kraddr_geo_style_client() -> None:
+def test_validate_async_supports_kor_travel_geo_style_client() -> None:
     async def run() -> None:
         result = await validate_address_geocoding_probe_async(
             AddressGeocodingProbe(

@@ -1,16 +1,22 @@
 """주소 지오코딩 검증용 공개 모델과 helper.
 
 `python-mois-api`는 주소 정규화·정/역 지오코딩을 자체 구현하지 않습니다(ADR-002).
-외부 라이브러리 [`python-kraddr-geo`](https://github.com/digitie/python-kraddr-geo)의
-`AsyncAddressClient` 같은 클라이언트로 후보를 받아온 뒤, 여기에 정의된
-`validate_address_geocoding_probe[_async]`로 MOIS 인허가 원본 좌표·주소와 비교만 합니다.
-신규 보강 필드는 `kraddr-geo`의 `x_extension`을 통해 받습니다.
+외부 라이브러리 [`kor-travel-geo`](https://github.com/digitie/kor-travel-geo)(구
+`python-kraddr-geo`, Python 패키지 `kortravelgeo`)의 `AsyncAddressClient` 같은
+클라이언트로 후보를 받아온 뒤, 여기에 정의된 `validate_address_geocoding_probe[_async]`로
+MOIS 인허가 원본 좌표·주소와 비교만 합니다.
+
+`kor-travel-geo`는 GPL-3.0-only이고 `mois`는 MIT입니다. `mois`는 그 소스를 절대 import하지
+않고(라이선스 전파 방지), 호출자가 그쪽 v2 `CandidateV2`(`address.road_address`,
+`point.lon`/`point.lat` 등)를 `GeocodingCandidate` 또는 dict로 변환해 전달하는 방식만
+지원합니다. 신규 보강 필드는 `kor-travel-geo`의 `CandidateV2.metadata`/`region`을 통해
+받습니다.
 
 `python-kraddr-base`(`kraddr.base.PlaceCoordinate`, `Address`, `LatLon` 등)에는
 의존하지 않습니다. 입력 타입은 `GeocodingCandidate` 또는 dict-like `Mapping[str, Any]`로
 제한합니다(ADR-009).
 
-자세한 통합 방법은 `docs/integration-with-kraddr-geo.md`와
+자세한 통합 방법은 `docs/integration-with-kor-travel-geo.md`와
 `docs/decisions.md` ADR-002/003/004/009를 참조하세요.
 """
 
@@ -136,9 +142,12 @@ class AddressGeocoder(Protocol):
     """주소 검증에 필요한 최소 지오코더 계약.
 
     동기/비동기 구현을 모두 허용하기 위해 반환 타입을 동기 값 또는 awaitable로 둡니다.
-    `python-kraddr-geo`처럼 async-only 구현은 코루틴을 반환하면 됩니다(ADR-004 참조).
-    반환값은 `GeocodingCandidate` 또는 `Mapping[str, Any]`로 한정합니다. `python-kraddr-base`
-    값 객체를 자동으로 받지 않습니다(ADR-009).
+    `kor-travel-geo`처럼 async-only 구현은 코루틴을 반환하면 됩니다(ADR-004 참조).
+    `kor-travel-geo`의 `AsyncAddressClient.geocode`/`.reverse`는 이 Protocol과 메서드 이름·반환
+    타입이 다르므로(v2 `CandidateV2`), 직접 전달할 수 없고 이 계약에 맞춰 변환하는 얇은 adapter가
+    필요합니다(`docs/integration-with-kor-travel-geo.md` 예시 참고). 반환값은 `GeocodingCandidate`
+    또는 `Mapping[str, Any]`로 한정합니다. `python-kraddr-base` 값 객체를 자동으로 받지 않습니다
+    (ADR-009).
     """
 
     def get_coord(
@@ -157,11 +166,7 @@ class AddressGeocoder(Protocol):
         x: float,
         y: float,
         max_distance_m: float | None = None,
-    ) -> (
-        GeocodingCandidateLike
-        | None
-        | Awaitable[GeocodingCandidateLike | None]
-    ):
+    ) -> GeocodingCandidateLike | Awaitable[GeocodingCandidateLike | None] | None:
         """지정 좌표 주변의 가장 가까운 도로명주소 후보를 반환합니다."""
         ...
 
@@ -175,7 +180,7 @@ def validate_address_geocoding_probe(
     """MOIS 주소/좌표 한 행을 지오코더의 정방향/역방향 결과와 비교합니다.
 
     지오코더 메서드가 코루틴을 반환하면 `TypeError`로 거부합니다. async 구현
-    (`python-kraddr-geo`의 `AsyncAddressClient` 등)을 검증할 때는
+    (`kor-travel-geo`의 `AsyncAddressClient` 등)을 검증할 때는
     `validate_address_geocoding_probe_async`를 사용합니다.
     """
 
@@ -221,7 +226,7 @@ def validate_address_geocoding_probe(
                 fallback_x=input_x,
                 fallback_y=input_y,
             )
-            reverse_distance = reverse_candidate.distance_m
+            reverse_distance = _distance(input_x, input_y, reverse_candidate.x, reverse_candidate.y)
 
     distance_values = [
         value for value in (geocode_distance, reverse_distance) if value is not None
@@ -250,7 +255,7 @@ async def validate_address_geocoding_probe_async(
 ) -> AddressGeocodingValidationResult:
     """`validate_address_geocoding_probe`의 비동기 버전.
 
-    `python-kraddr-geo`의 `AsyncAddressClient` 같은 async-only 클라이언트(ADR-004)를
+    `kor-travel-geo`의 `AsyncAddressClient` 같은 async-only 클라이언트(ADR-004)를
     그대로 사용할 수 있도록 코루틴 결과를 `await`합니다.
     """
 
@@ -292,7 +297,7 @@ async def validate_address_geocoding_probe_async(
                 fallback_x=input_x,
                 fallback_y=input_y,
             )
-            reverse_distance = reverse_candidate.distance_m
+            reverse_distance = _distance(input_x, input_y, reverse_candidate.x, reverse_candidate.y)
 
     distance_values = [
         value for value in (geocode_distance, reverse_distance) if value is not None

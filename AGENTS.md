@@ -10,7 +10,8 @@
 
 이 저장소(GitHub `python-mois-api`, Python `mois`)는 행정안전부 지방행정 인허가정보 OpenAPI 195종과
 localdata 파일 다운로드 195종을 다루는 **데이터 제공 라이브러리**다. 주소 정규화·정/역 지오코딩은
-[`python-kraddr-geo`](https://github.com/digitie/python-kraddr-geo)가 담당하며, `mois`는
+[`kor-travel-geo`](https://github.com/digitie/kor-travel-geo)(구 `python-kraddr-geo`, GPL-3.0-only)가
+담당하며, `mois`는 그 소스를 import하지 않고
 `validate_address_geocoding_probe[_async]`로 양쪽 결과를 비교만 한다(ADR-002,
 [`docs/decisions.md`](docs/decisions.md)).
 
@@ -45,7 +46,7 @@ PC 개발은 **WSL ext4** 위에서 수행한다. NTFS 마운트에서 직접 `g
 1. `README.md` — 프로젝트 개요와 빠른 시작
 2. `SKILL.md` — DO NOT 룰, 자주 묻는 작업, 도메인 어휘
 3. `docs/decisions.md` — 관련 ADR
-4. `docs/integration-with-kraddr-geo.md` — 외부 지오코더와의 통합 전략
+4. `docs/integration-with-kor-travel-geo.md` — 외부 지오코더와의 통합 전략
 5. `docs/repeated-mistakes.md` — 반복 실수 방지
 6. `CHANGELOG.md` — 현재 릴리스 범위
 
@@ -55,7 +56,7 @@ PC 개발은 **WSL ext4** 위에서 수행한다. NTFS 마운트에서 직접 `g
 2. 이 `AGENTS.md`
 3. `SKILL.md`
 4. [`docs/decisions.md`](docs/decisions.md)의 ADR
-5. [`docs/integration-with-kraddr-geo.md`](docs/integration-with-kraddr-geo.md),
+5. [`docs/integration-with-kor-travel-geo.md`](docs/integration-with-kor-travel-geo.md),
    [`docs/travel-planner-architecture.md`](docs/travel-planner-architecture.md),
    [`docs/db-structure.md`](docs/db-structure.md),
    [`docs/repeated-mistakes.md`](docs/repeated-mistakes.md)
@@ -67,8 +68,8 @@ PC 개발은 **WSL ext4** 위에서 수행한다. NTFS 마운트에서 직접 `g
 
 1. **단순 전달용 래퍼 금지** — downstream이 직접 사용할 public client, typed model, enum, helper를
    제공한다. 단순 전달용 wrapper, 장기 호환 alias, 임시 facade를 만들지 않는다(ADR-003).
-2. **지오코딩 재구현 금지** — 주소 정규화·정/역 지오코딩은 `python-kraddr-geo`가 책임진다.
-   `mois`는 검증 helper만 제공한다(ADR-002).
+2. **지오코딩 재구현 금지** — 주소 정규화·정/역 지오코딩은 `kor-travel-geo`(구 `python-kraddr-geo`)가
+   책임진다. `mois`는 검증 helper만 제공하고 그 소스를 import하지 않는다(ADR-002, GPL-3.0).
 3. **sync/async 한쪽만 추가 금지** — 신규 공개 진입점은 `MoisClient`/`AsyncMoisClient`,
    `LocalDataFileClient`/`AsyncLocalDataFileClient`,
    `validate_address_geocoding_probe`/`validate_address_geocoding_probe_async`처럼 짝으로 유지한다
@@ -99,7 +100,7 @@ PC 개발은 **WSL ext4** 위에서 수행한다. NTFS 마운트에서 직접 `g
 
 - 외부 API 관련 작업은 단순 전달용 래퍼/어댑터/게이트웨이 지양 원칙을 먼저 확인하고 문서/코드에 반영한 뒤
   진행한다(ADR-003).
-- downstream(`python-krtour-map`, TripMate 등)에서 필요한 endpoint, pagination, cursor, exception,
+- downstream(`kor-travel-map`(구 `python-krtour-map`), TripMate 등)에서 필요한 endpoint, pagination, cursor, exception,
   raw payload 계약이 부족하면 이 저장소의 public API를 먼저 안정화한다.
 - 검증된 다른 라이브러리의 구현이 더 적합하면 wrapper로 감싸지 말고 라이선스와 출처를 확인한 뒤 프로젝트
   코드에 직접 반영한다.

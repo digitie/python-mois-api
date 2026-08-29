@@ -189,3 +189,55 @@ UPSERT 키는 `(service_slug, MNG_NO)`이고, `MNG_NO`가 비어 있는 행은 `
 - `jsonable`/`redact_sensitive`/`error_to_dict`/`save_fixture`는 모두 `src/mois/debug.py`,
   `src/mois/fixtures.py`에 있는 기존 helper를 그대로 재사용한다(Streamlit 파일에 인라인 재구현하지
   않는다).
+
+---
+
+## ADR-011 — `src/mois/rustfs.py`는 RustFS 미러 업로드를 위한 자체 SigV4 클라이언트다
+
+- **일시**: 2026-08-29
+- **상태**: 채택
+
+`src/mois/rustfs.py`는 [RustFS](https://rustfs.com)(Rust로 구현된 S3 호환 오브젝트 스토리지 서버,
+자체 호스팅용)에 파일을 업로드하기 위한 동기/비동기 클라이언트(`RustfsClient`/`AsyncRustfsClient`)와
+설정(`EffectiveRustfsConfig`)을 제공한다. `LocalDataFileClient`/`AsyncLocalDataFileClient`의
+`download_to_rustfs()`와 동적 편의 메서드 `download_<slug>_to_rustfs()`가 이를 사용해, localdata 파일을
+로컬에 다운로드하는 동시에 같은 파일을 RustFS 버킷에도 미러링한다. 커밋 `029d14c`(2026-06-07)에서
+추가됐으나 README/AGENTS.md/decisions.md 어디에도 설명이 없었다.
+
+- **왜 필요한가**: `tools/load_all_localdata_to_sqlite.py` 같은 배치 적재 파이프라인이나 다운스트림
+  ETL(TripMate, `kor-travel-map`)이 다운로드한 원본 CSV를 재현 가능하도록 오브젝트 스토리지에
+  보관하려는 용도다. `MOIS_RUSTFS_ENABLED=true`와 `MOIS_RUSTFS_ACCESS_KEY`/`MOIS_RUSTFS_SECRET_KEY`가
+  설정된 경우에만 동작하는 완전한 opt-in 기능이며, 기본값(`false`)에서는 기존 `download()` 동작에
+  영향을 주지 않는다.
+- **왜 `boto3`/`aioboto3`를 쓰지 않았는가**: `pyproject.toml` 의존성은 `httpx`/`pydantic`/`pyproj`/
+  `SQLAlchemy`뿐이다. 이 모듈이 실제로 쓰는 S3 오퍼레이션은 버킷 존재 확인(HEAD)과 객체 업로드(PUT)
+  둘뿐이라, AWS SDK 전체를 새 의존성으로 들이는 대신 이미 쓰고 있는 `httpx`로 AWS Signature Version
+  4 서명을 직접 구현했다(`_signed_request_helper`). 동기/비동기 두 클라이언트를 모두 제공하는 것은
+  ADR-004의 sync/async 짝 유지 규칙을 따른 것이다.
+- **공개 API 여부**: `RustfsClient`/`AsyncRustfsClient`/`EffectiveRustfsConfig`는 `mois.__init__`의
+  `__all__`에 포함된 공개 표면이고 `tests/test_rustfs.py`로 검증된다. 오브젝트 키는 `rustfs://<bucket>/
+  <key>` 형태 URI 문자열로 반환한다.
+
+---
+
+## ADR-012 — 메인 패키지 `mois`에는 CLI 진입점(`project.scripts`)을 두지 않는다
+
+- **일시**: 2026-08-29
+- **상태**: 채택
+
+`packages/mois-debug-ui/pyproject.toml`에는 `mois-debug-ui`, `mois-debug-ui-load-sqlite` 두
+`[project.scripts]` 진입점이 있지만, 루트 `pyproject.toml`(패키지 `mois`)에는 하나도 없다. 이 비대칭은
+결함이 아니라 두 패키지의 성격 차이를 그대로 반영한 것이므로 CLI를 추가하지 않는다.
+
+- `mois`는 AGENTS.md 목표에 정의된 대로 downstream이 import해서 쓰는 **데이터 제공 라이브러리**다.
+  `pip install python-mois-api`로 설치하는 사용자에게 실행 가능한 커맨드를 제공할 이유가 없다.
+- `mois-debug-ui`는 FastAPI + React로 만든 독립 실행형 웹 애플리케이션(ADR-007)이다. 프로세스로 띄워야
+  하는 서버이므로 그 자체 CLI 진입점이 자연스럽다. 즉 CLI가 있는 쪽이 예외가 아니라 애플리케이션이라는
+  성격의 결과다.
+- 저장소 안에서 데이터를 적재/생성하는 운영 스크립트(`tools/load_all_localdata_to_sqlite.py`,
+  `tools/generate_docs.py`, `tools/probe_life_convenience.py`)는 이미 `argparse` 기반으로 존재하고
+  `python tools/<script>.py`로 직접 실행한다. 이들은 이 저장소 자체의 유지보수/배치 작업이지 downstream
+  라이브러리 사용자에게 배포할 명령이 아니므로, `python -m mois.cli` 같은 새 진입점으로 감쌀 필요가
+  없다. 실사용 근거 없이 새 CLI 표면을 추가하는 것은 SKILL.md §4의 "단순 전달용 래퍼 금지" 원칙과도
+  맞지 않는다.
+- 코드 변경은 없다. 이 ADR은 비대칭이 의도된 것임을 기록하는 용도다.

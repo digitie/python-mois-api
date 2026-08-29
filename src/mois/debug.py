@@ -13,6 +13,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from .exceptions import MoisError
+
 SENSITIVE_KEYS = frozenset(
     {
         "authorization",
@@ -99,11 +101,18 @@ def redact_sensitive(obj: Any) -> Any:
 
 
 def error_to_dict(exc: BaseException) -> dict[str, Any]:
-    """예외를 디버그 UI에서 표시할 수 있는 구조로 변환합니다."""
+    """예외를 디버그 UI에서 표시할 수 있는 구조로 변환합니다.
 
-    return {
+    `mois` 자체 예외(`MoisError` 계열)면 `result_code`(data.go.kr `resultCode`)를
+    함께 담아 어떤 종류의 실패(인증/요청/서버)인지 UI에서 바로 구분할 수 있게 한다.
+    """
+
+    payload: dict[str, Any] = {
         "type": exc.__class__.__name__,
         "module": exc.__class__.__module__,
         "message": str(exc),
         "traceback": traceback.format_exception(exc),
     }
+    if isinstance(exc, MoisError):
+        payload["result_code"] = exc.result_code
+    return payload

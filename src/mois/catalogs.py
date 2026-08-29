@@ -23,6 +23,9 @@ from .models import (
     ResponseField,
 )
 
+SERVICE_KEY_ENV_NAME = "DATA_GO_KR_SERVICE_KEY"
+"""OpenAPI 서비스키를 읽는 환경변수 이름(`MoisClient.from_env()` 기본값과 동일)."""
+
 
 def list_openapi_services(category: str | None = None) -> list[OpenApiService]:
     """구현 대상 OpenAPI 업종 195개 목록을 반환합니다."""
@@ -129,6 +132,40 @@ def get_response_field(field: str) -> ResponseField:
         if row["field"] == field:
             return _response_field(row)
     raise MoisCatalogError(f"알 수 없는 응답변수입니다: {field}")
+
+
+def get_api_catalog() -> tuple[dict[str, Any], ...]:
+    """디버그 UI 등에서 위젯을 만들기 쉬운 OpenAPI 카탈로그를 반환합니다.
+
+    `list_openapi_services()`와 달리 파라미터 위젯 메타데이터(`required_params`/
+    `optional_params`)와 서비스키 발급 링크/환경변수 이름을 평평한 dict로 담는다.
+    """
+
+    return tuple(_api_catalog_entry(service) for service in list_openapi_services())
+
+
+def get_api_catalog_entry(slug: str) -> dict[str, Any]:
+    """slug 하나의 API 카탈로그 항목을 dict로 반환합니다."""
+
+    return _api_catalog_entry(get_openapi_service(slug))
+
+
+def _api_catalog_entry(service: OpenApiService) -> dict[str, Any]:
+    return {
+        "service_key": service.slug,
+        "dataset_name": service.title,
+        "dataset_label": f"{service.title} ({service.slug})",
+        "category": service.category,
+        "data_source": "data.go.kr",
+        "service_key_url": service.application_url,
+        "service_key_env_names": [SERVICE_KEY_ENV_NAME],
+        "info_url": service.info_url,
+        "history_url": service.history_url,
+        "info_operation": service.info_operation,
+        "history_operation": service.history_operation,
+        "required_params": list(service.required_params),
+        "optional_params": list(service.optional_params),
+    }
 
 
 def _filter_by_category(

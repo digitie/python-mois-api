@@ -4,7 +4,15 @@
 
 ## [Unreleased]
 
-- (다음 릴리스로 예정된 변경 없음)
+- 카탈로그 기반 Streamlit 디버그 UI(`examples/streamlit_debug_ui.py`) 추가: `python-khoa-api` 템플릿에
+  맞춰 Data source → Category → API 3단 계단식 선택, `required_params`/`optional_params` 메타데이터
+  기반 파라미터 폼 자동 생성(업종별 하드코딩 분기 없음), 고정 6개 탭(Raw Response/Pydantic
+  Model/Processed Result/Validation Errors/Debug Trace/Fixture·Testcase), 구조화 에러 표시,
+  `save_fixture()` 실 저장 기능 포함(ADR-010)
+- `OpenApiService`에 `required_params`/`optional_params` 파라미터 위젯 메타데이터 필드 추가, 이를
+  평평한 dict로 반환하는 `get_api_catalog()`/`get_api_catalog_entry()` 추가
+- `mois.debug.error_to_dict()`가 `MoisError` 계열 예외의 `result_code`를 함께 반환하도록 개선
+- `pyproject.toml`에 `debug-ui = ["pandas>=2", "streamlit>=1.36"]` optional dependency 추가
 
 ## 0.1.0
 

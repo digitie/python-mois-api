@@ -166,11 +166,7 @@ class AddressGeocoder(Protocol):
         x: float,
         y: float,
         max_distance_m: float | None = None,
-    ) -> (
-        GeocodingCandidateLike
-        | None
-        | Awaitable[GeocodingCandidateLike | None]
-    ):
+    ) -> GeocodingCandidateLike | Awaitable[GeocodingCandidateLike | None] | None:
         """지정 좌표 주변의 가장 가까운 도로명주소 후보를 반환합니다."""
         ...
 

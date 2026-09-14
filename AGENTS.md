@@ -3,10 +3,10 @@
 ## 목표
 
 `python-mois-api`(GitHub 저장소 이름, Python import `mois`)는 행정안전부 지방행정 인허가정보 OpenAPI
-195종과 `file.localdata.go.kr` 파일 다운로드 195종을 하나의 동기/비동기 클라이언트 인터페이스로 감싸는
+195종과 `file.localdata.go.kr` 파일 다운로드 195종을 하나의 비동기 전용 클라이언트 인터페이스로 감싸는
 **데이터 제공 라이브러리**다. 주소 정규화·정/역 지오코딩은 담당하지 않고 별도 라이브러리
 [`kor-travel-geo`](https://github.com/digitie/kor-travel-geo)(구 `python-kraddr-geo`, GPL-3.0-only)에
-위임하며, `mois`는 그 소스를 import하지 않고 검증 helper(`validate_address_geocoding_probe[_async]`,
+위임하며, `mois`는 그 소스를 import하지 않고 검증 helper(`validate_address_geocoding_probe`,
 ADR-002)로만 연결한다. 디버그 웹 UI는 별도 패키지 `python-mois-debug-ui`(`packages/mois-debug-ui/`)로
 분리되어 있다(ADR-007).
 
@@ -70,10 +70,7 @@ ADR-002)로만 연결한다. 디버그 웹 UI는 별도 패키지 `python-mois-d
    제공한다. 단순 전달용 wrapper, 장기 호환 alias, 임시 facade, 게이트웨이는 만들지 않는다(ADR-003).
 2. **지오코딩 재구현 금지** — 주소 정규화·정/역 지오코딩은 `kor-travel-geo`(구 `python-kraddr-geo`)가
    책임진다. `mois`는 검증 helper만 제공하고 그 소스를 import하지 않는다(ADR-002, GPL-3.0).
-3. **sync/async 한쪽만 추가 금지** — 신규 공개 진입점은 `MoisClient`/`AsyncMoisClient`,
-   `LocalDataFileClient`/`AsyncLocalDataFileClient`,
-   `validate_address_geocoding_probe`/`validate_address_geocoding_probe_async`처럼 짝으로 유지한다
-   (ADR-004).
+3. **비동기 전용 공개 클라이언트** — 네트워크 I/O는 await/async for/async with를 사용한다. 동기 클라이언트·Async 접두사 별칭·aio 팩터리를 다시 추가하지 않는다(ADR-013).
 4. **`python-kraddr-base` 의존 금지** — `pyproject.toml`에 `python-kraddr-base`를 추가하지 않고,
    소스에서 `from kraddr.base import …` / `import kraddr.base`를 작성하지 않는다. 외부 라이브러리 결과는
    `GeocodingCandidate` 또는 dict으로 변환해 전달한다(ADR-009).
@@ -106,7 +103,7 @@ ADR-002)로만 연결한다. 디버그 웹 UI는 별도 패키지 `python-mois-d
 - [ ] OpenAPI 목록 변경은 `src/mois/catalog.py`, `docs/api-list.md`, `docs/response-fields.md`,
       `docs/incremental-openapi.md`를 `tools/generate_docs.py`로 함께 갱신
 - [ ] 파일 로더 변경은 좌표 변환, 날짜/시각 변환, 빈 값 보존 테스트 함께 확인
-- [ ] 지오코딩 검증 helper 변경은 sync/async 짝 양쪽을 함께 변경
+- [ ] 지오코딩 검증 helper 변경은 비동기 호출과 모델 계약을 함께 검증
 
 ## 검증
 
@@ -115,3 +112,9 @@ python -m pytest -q
 python -m ruff check .
 python -m mypy src/mois
 ```
+
+## 비동기 전용 호출과 TPS
+
+공개 네트워크 클라이언트는 native async 하나로 통합했다.
+`max_rps` 또는 공유 `AsyncTokenBucket`을 `rate_limiter=`에 전달한다.
+기존 동기/비동기 병행 지침은 ADR-013로 대체했다. [호출·TPS·소유권·DB 예제](docs/async-tps.md)를 따른다.

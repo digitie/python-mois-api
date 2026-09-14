@@ -18,7 +18,7 @@ python -m mypy src/mois
 - OpenAPI 요청 파라미터: `cond[FIELD::OP]` 생성
 - 증분/이력 편의 메서드: `DAT_UPDT_PNT`, `LAST_MDFCN_PNT`, `BASE_DATE`, `OPN_ATMY_GRP_CD`
 - JSON/XML 응답 파싱과 resultCode 예외 매핑
-- httpx 기반 동기/asyncio 클라이언트와 `MoisClient.aio()`, `LocalDataFileClient.aio()` 흐름
+- httpx 기반 동기/asyncio 클라이언트와 `MoisClient()`, `LocalDataFileClient()` 흐름
 - 디버그 UI fixture 재생: `tests/fixtures/**/*.json`을 공통 실행기로 읽어 파싱/가공 결과 비교
 - localdata CSV 로드: CP949, 날짜, KST 시각, 숫자, 좌표 변환
 - 좌표 값 객체: `KatecPoint(x, y)`, `Wgs84Point(lat, lon)`, `StationCoordinates` 호환 별칭
@@ -36,12 +36,12 @@ import pytest
 from mois import MoisClient
 
 @pytest.mark.live
-def test_live_hospitals_first_page():
+async def test_live_hospitals_first_page():
     key = os.getenv("DATA_GO_KR_SERVICE_KEY")
     if not key:
         pytest.skip("DATA_GO_KR_SERVICE_KEY가 없습니다")
-    client = MoisClient(key)
-    rows = client.get_hospitals(num_of_rows=1)
+    async with MoisClient(key) as client:
+        rows = await client.get_hospitals(num_of_rows=1)
     assert isinstance(rows, list)
 ```
 
@@ -62,7 +62,7 @@ def test_live_hospitals_first_page_async():
         pytest.skip("DATA_GO_KR_SERVICE_KEY가 없습니다")
 
     async def run():
-        async with MoisClient.aio(key) as client:
+        async with MoisClient(key) as client:
             rows = await client.get_hospitals(num_of_rows=1)
             assert isinstance(rows, list)
 

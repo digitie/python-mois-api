@@ -60,7 +60,7 @@ y, max_distance_m)`를 요구하고, 반환값은 `GeocodingCandidate` 또는 `M
 허용합니다(ADR-009). `kor-travel-geo`의 `AsyncAddressClient`는 이름이 다른 메서드
 (`geocode(query=...)`, `reverse(lon, lat, ...)`)를 제공하고, `GeocodeV2Response`/
 `ReverseV2Response`(각각 `.candidates: tuple[CandidateV2, ...]`)라는 자체 pydantic 모델을
-반환합니다. 즉 **`AsyncAddressClient` 인스턴스를 `validate_address_geocoding_probe_async`에 그대로
+반환합니다. 즉 **`AsyncAddressClient` 인스턴스를 `validate_address_geocoding_probe`에 그대로
 넘길 수 없습니다.** 호출자가 다음처럼 얇은 adapter를 작성해야 합니다.
 
 ```python
@@ -74,7 +74,8 @@ from kortravelgeo.dto.v2 import CandidateV2
 from mois import (
     AddressGeocodingProbe,
     LocalDataFileClient,
-    validate_address_geocoding_probe_async,
+    record_to_place_record,
+    validate_address_geocoding_probe,
 )
 
 
@@ -133,7 +134,7 @@ class KorTravelGeoAdapter:
 
 async def verify_hospitals(limit: int = 100) -> None:
     async with (
-        LocalDataFileClient.aio() as files,
+        LocalDataFileClient() as files,
         AsyncAddressClient() as raw_client,
     ):
         geocoder = KorTravelGeoAdapter(raw_client)
@@ -144,7 +145,7 @@ async def verify_hospitals(limit: int = 100) -> None:
                 record_to_place_record(record),
                 distance_tolerance_m=50.0,
             )
-            result = await validate_address_geocoding_probe_async(
+            result = await validate_address_geocoding_probe(
                 probe,
                 geocoder,
                 geocoder_crs="EPSG:4326",
@@ -163,14 +164,13 @@ async def verify_hospitals(limit: int = 100) -> None:
 핵심 규칙:
 
 - **async 클라이언트는 async helper**. `kor-travel-geo`는 async-only이기 때문에
-  `validate_address_geocoding_probe_async`를 사용합니다. 동기 helper에 코루틴 결과가 들어오면
-  `TypeError`로 즉시 거부합니다(ADR-004).
+  `validate_address_geocoding_probe`를 사용합니다. 동기 지오코더는 호출 전에 TypeError로 거부합니다(ADR-013).
 - **좌표 순서는 모델로 잠금**. `Wgs84Point`는 `(lat, lon)`, `KatecPoint`는 `(x, y)`. float 네 개를
   외부로 흘리지 않습니다(ADR-005). `kor-travel-geo` v2의 `PointV2`는 `(lon, lat)` 순서이므로
   adapter에서 `x=point.lon, y=point.lat`로 명시적으로 매핑합니다.
 - **CRS는 명시**. `kor-travel-geo` v2는 기본 EPSG:4326(`PointV2.lon/lat`)을 씁니다(v1 REST API는
   vworld 호환 EPSG:5179 `x_extension.point`). `mois` 원본은 EPSG:5174입니다.
-  `validate_address_geocoding_probe_async(..., geocoder_crs="EPSG:4326")`처럼 실제로 쓰는 API
+  `validate_address_geocoding_probe(..., geocoder_crs="EPSG:4326")`처럼 실제로 쓰는 API
   버전의 좌표계를 명시합니다.
 - **응답에 자체 키 추가 금지**. `GeocodingCandidate`는 `kor-travel-geo` v2의 `CandidateV2`와 1:1로
   대응해야 합니다. `lot_address`는 `CandidateV2.address.parcel_address`(지번주소)에 대응합니다.

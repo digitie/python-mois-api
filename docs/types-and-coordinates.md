@@ -61,14 +61,25 @@ print(coords.wgs84_point.as_tuple())  # (lat, lon)
 기존 호환용 객체입니다. `x`, `y`, `lat`, `lon` 필드는 그대로 있고, 새 값 객체 접근자를 추가로 제공합니다.
 
 ```python
-record = files.load_hospitals()[0]
-coordinate = record.coordinates
+import asyncio
+from mois import LocalDataFileClient
 
-print(coordinate.x, coordinate.y)               # 기존 호환
-print(coordinate.lat, coordinate.lon)           # 위도, 경도 순서
-print(coordinate.katec_point.as_tuple())        # (x, y)
-print(coordinate.wgs84_point.as_tuple())        # (lat, lon)
-print(coordinate.station_coordinates.to_wkt())  # WGS84 Point WKT
+
+async def main() -> None:
+    async with LocalDataFileClient() as files:
+        record = (await files.load_hospitals())[0]
+    coordinate = record.coordinates
+    if coordinate is None:
+        return
+
+    print(coordinate.x, coordinate.y)               # 기존 호환
+    print(coordinate.lat, coordinate.lon)           # 위도, 경도 순서
+    print(coordinate.katec_point.as_tuple())        # (x, y)
+    print(coordinate.wgs84_point.as_tuple())        # (lat, lon)
+    print(coordinate.station_coordinates.to_wkt())  # WGS84 Point WKT
+
+
+asyncio.run(main())
 ```
 
 ## 변환 helper

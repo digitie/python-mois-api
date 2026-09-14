@@ -83,17 +83,22 @@ PDF의 권장 운영 방식은 일 1회 야간 배치입니다. 초 단위 스�
 예시:
 
 ```python
+import asyncio
 from datetime import datetime
 from zoneinfo import ZoneInfo
-
 from mois import MoisClient
 
-client = MoisClient.from_env()
-since = datetime(2026, 5, 5, 0, 0, 0, tzinfo=ZoneInfo("Asia/Seoul"))
 
-for row in client.iter_updated("hospitals", since):
-    # (service_slug, row["MNG_NO"]) 기준 UPSERT
-    ...
+async def main() -> None:
+    async with MoisClient.from_env() as client:
+        since = datetime(2026, 5, 5, 0, 0, 0, tzinfo=ZoneInfo("Asia/Seoul"))
+
+        async for row in client.iter_updated("hospitals", since):
+            # (service_slug, row["MNG_NO"]) 기준 UPSERT
+            ...
+
+
+asyncio.run(main())
 ```
 
 ## 운영 안정성

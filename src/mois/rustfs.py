@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import hmac
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
 from urllib.parse import quote, urlsplit
 
 import httpx
+
+from ._file_io import run_file_io
+from ._ratelimit import AsyncTokenBucket
 
 _EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
 _SERVICE = "s3"
@@ -41,7 +43,7 @@ def join_object_key(*parts: str | Path) -> str:
     return str(PurePosixPath(*joined)) if joined else "python-mois-api"
 
 
-def sha256_file_sync(path: Path) -> str:
+def _sha256_file(path: Path) -> str:
     """파일의 SHA256 해시를 동기식으로 계산합니다."""
     digest = hashlib.sha256()
     with path.open("rb") as f:
@@ -53,9 +55,9 @@ def sha256_file_sync(path: Path) -> str:
     return digest.hexdigest()
 
 
-async def sha256_file_async(path: Path) -> str:
+async def sha256_file(path: Path) -> str:
     """파일의 SHA256 해시를 비동기식으로 계산합니다."""
-    return await asyncio.to_thread(sha256_file_sync, path)
+    return await run_file_io(_sha256_file, path)
 
 
 class AsyncFileChunkIterator:
@@ -70,12 +72,17 @@ class AsyncFileChunkIterator:
 
     async def __anext__(self) -> bytes:
         if self._f is None:
-            self._f = await asyncio.to_thread(self.path.open, "rb")
-        chunk = await asyncio.to_thread(self._f.read, 1024 * 1024)
+            self._f = self.path.open("rb")
+        chunk = await run_file_io(self._f.read, 1024 * 1024)
         if not chunk:
-            await asyncio.to_thread(self._f.close)
+            await self.aclose()
             raise StopAsyncIteration
         return cast(bytes, chunk)
+
+    async def aclose(self) -> None:
+        if self._f is not None:
+            await run_file_io(self._f.close)
+            self._f = None
 
 
 @dataclass(frozen=True)
@@ -88,8 +95,8 @@ class EffectiveRustfsConfig:
     prefix: str
     region: str
     force_path_style: bool
-    access_key: str | None
-    secret_key: str | None
+    access_key: str | None = field(repr=False)
+    secret_key: str | None = field(repr=False)
 
     @classmethod
     def from_env(cls) -> EffectiveRustfsConfig:
@@ -167,8 +174,8 @@ def _signed_request_helper(
     headers: dict[str, str] | None,
     payload_hash: str,
     region: str,
-    access_key: str | None,
-    secret_key: str | None,
+    access_key: str | None = field(repr=False),
+    secret_key: str | None = field(repr=False),
 ) -> tuple[str, dict[str, str]]:
     method = method.upper()
     request_time = datetime.now(UTC)
@@ -237,110 +244,27 @@ def _strip_etag(value: str | None) -> str | None:
 
 
 class RustfsClient:
-    """RustFS 오브젝트 업로드를 위한 동기식 SigV4 S3 클라이언트."""
-
-    def __init__(self, config: EffectiveRustfsConfig) -> None:
-        """동기식 RustFS 클라이언트를 초기화합니다."""
-        if not config.force_path_style:
-            raise ValueError("RustFS path-style endpoint만 지원합니다")
-        if not config.credentials_configured:
-            raise ValueError("RustFS access key와 secret key가 설정되어 있지 않습니다")
-        self._config = config
-        self._endpoint = config.endpoint_url.rstrip("/")
-        self._parsed_endpoint = urlsplit(self._endpoint)
-        if (
-            self._parsed_endpoint.scheme not in {"http", "https"}
-            or not self._parsed_endpoint.netloc
-        ):
-            raise ValueError(f"invalid RustFS endpoint_url: {config.endpoint_url}")
-
-    def ensure_bucket(self) -> None:
-        """버킷의 존재를 확인하고 없으면 새로 생성합니다."""
-        head = self._request(
-            "HEAD",
-            bucket=self._config.bucket,
-            expected_status=(200, 404),
-        )
-        if head.status_code == 200:
-            return
-        put = self._request(
-            "PUT",
-            bucket=self._config.bucket,
-            expected_status=(200, 201, 204, 409),
-        )
-        if put.status_code == 409 and "BucketAlready" not in put.text:
-            raise ValueError(f"RustFS bucket creation failed: {put.text}")
-
-    def put_file(
-        self,
-        key: str,
-        path: Path,
-        *,
-        sha256: str | None = None,
-    ) -> str | None:
-        """로컬 파일을 RustFS 스토리지에 업로드합니다."""
-        self.ensure_bucket()
-        digest = sha256 or sha256_file_sync(path)
-        stat = path.stat()
-        headers = {
-            "content-length": str(stat.st_size),
-            "content-type": "application/octet-stream",
-            "x-amz-content-sha256": digest,
-        }
-        with path.open("rb") as f:
-            response = self._request(
-                "PUT",
-                bucket=self._config.bucket,
-                key=key,
-                headers=headers,
-                content=f,
-                payload_hash=digest,
-                expected_status=(200, 201, 204),
-            )
-        return _strip_etag(response.headers.get("etag"))
-
-    def _request(
-        self,
-        method: str,
-        *,
-        bucket: str | None = None,
-        key: str | None = None,
-        query: dict[str, str] | None = None,
-        headers: dict[str, str] | None = None,
-        content: Any = None,
-        payload_hash: str = _EMPTY_SHA256,
-        expected_status: tuple[int, ...],
-    ) -> httpx.Response:
-        url, signed_headers = _signed_request_helper(
-            method,
-            endpoint_url=self._endpoint,
-            parsed_endpoint=self._parsed_endpoint,
-            bucket=bucket,
-            key=key,
-            query=query,
-            headers=headers,
-            payload_hash=payload_hash,
-            region=self._config.region,
-            access_key=self._config.access_key,
-            secret_key=self._config.secret_key,
-        )
-        timeout = httpx.Timeout(60.0, connect=10.0, read=None, write=None, pool=10.0)
-        with httpx.Client(timeout=timeout) as client:
-            response = client.request(method, url, headers=signed_headers, content=content)
-        if response.status_code not in expected_status:
-            raise ValueError(f"RustFS request failed: HTTP {response.status_code} {response.text}")
-        return response
-
-
-class AsyncRustfsClient:
     """RustFS 오브젝트 업로드를 위한 비동기식 SigV4 S3 클라이언트."""
 
-    def __init__(self, config: EffectiveRustfsConfig) -> None:
+    def __init__(
+        self,
+        config: EffectiveRustfsConfig,
+        *,
+        max_rps: float = 5.0,
+        rate_limiter: AsyncTokenBucket | None = None,
+        session: httpx.AsyncClient | None = None,
+    ) -> None:
         """비동기식 RustFS 클라이언트를 초기화합니다."""
         if not config.force_path_style:
             raise ValueError("RustFS path-style endpoint만 지원합니다")
         if not config.credentials_configured:
             raise ValueError("RustFS access key와 secret key가 설정되어 있지 않습니다")
+        if session is not None and not isinstance(session, httpx.AsyncClient):
+            raise TypeError("session must be httpx.AsyncClient")
+        self.rate_limiter = rate_limiter if rate_limiter is not None else AsyncTokenBucket(max_rps)
+        self._client = session
+        self._owns_client = session is None
+        self.closed = False
         self._config = config
         self._endpoint = config.endpoint_url.rstrip("/")
         self._parsed_endpoint = urlsplit(self._endpoint)
@@ -349,6 +273,18 @@ class AsyncRustfsClient:
             or not self._parsed_endpoint.netloc
         ):
             raise ValueError(f"invalid RustFS endpoint_url: {config.endpoint_url}")
+
+    async def __aenter__(self) -> RustfsClient:
+        return self
+
+    async def __aexit__(self, *_exc_info: object) -> None:
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        if not self.closed:
+            self.closed = True
+            if self._owns_client and self._client is not None:
+                await self._client.aclose()
 
     async def ensure_bucket(self) -> None:
         """비동기식으로 버킷의 존재를 확인하고 없으면 새로 생성합니다."""
@@ -365,7 +301,7 @@ class AsyncRustfsClient:
             expected_status=(200, 201, 204, 409),
         )
         if put.status_code == 409 and "BucketAlready" not in put.text:
-            raise ValueError(f"RustFS bucket creation failed: {put.text}")
+            raise ValueError(f"RustFS bucket creation failed: HTTP {put.status_code}")
 
     async def put_file(
         self,
@@ -376,8 +312,8 @@ class AsyncRustfsClient:
     ) -> str | None:
         """비동기식으로 로컬 파일을 RustFS 스토리지에 업로드합니다."""
         await self.ensure_bucket()
-        digest = sha256 or await sha256_file_async(path)
-        stat = path.stat()
+        digest = sha256 or await sha256_file(path)
+        stat = await run_file_io(path.stat)
         headers = {
             "content-length": str(stat.st_size),
             "content-type": "application/octet-stream",
@@ -406,6 +342,15 @@ class AsyncRustfsClient:
         payload_hash: str = _EMPTY_SHA256,
         expected_status: tuple[int, ...],
     ) -> httpx.Response:
+        if self.closed:
+            raise RuntimeError("client is closed")
+        if self._client is not None and self._client.auth is not None:
+            raise TypeError("RustFS uses signed headers; session auth is unsupported")
+        await self.rate_limiter.acquire()
+        if self.closed:
+            raise RuntimeError("client is closed")
+        if self._client is not None and self._client.auth is not None:
+            raise TypeError("RustFS uses signed headers; session auth is unsupported")
         url, signed_headers = _signed_request_helper(
             method,
             endpoint_url=self._endpoint,
@@ -420,8 +365,15 @@ class AsyncRustfsClient:
             secret_key=self._config.secret_key,
         )
         timeout = httpx.Timeout(60.0, connect=10.0, read=None, write=None, pool=10.0)
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.request(method, url, headers=signed_headers, content=content)
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=timeout)
+        try:
+            response = await self._client.request(
+                method, url, headers=signed_headers, content=content, follow_redirects=False
+            )
+        finally:
+            if isinstance(content, AsyncFileChunkIterator):
+                await content.aclose()
         if response.status_code not in expected_status:
-            raise ValueError(f"RustFS request failed: HTTP {response.status_code} {response.text}")
+            raise ValueError(f"RustFS request failed: HTTP {response.status_code}")
         return response

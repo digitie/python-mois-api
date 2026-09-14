@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import codecs
 import csv
 import io
@@ -16,12 +15,20 @@ from urllib.parse import urlencode
 
 from pyproj.exceptions import ProjError
 
-from ._http import HTTP_CLIENT_ERROR, build_async_session, build_session, raise_for_http_error
+from ._file_io import run_file_io
+from ._http import (
+    HTTP_CLIENT_ERROR,
+    AsyncHttpxTransport,
+    close_response,
+    raise_for_http_error,
+    resolve_transport,
+)
+from ._ratelimit import AsyncTokenBucket
 from .catalogs import get_file_download
 from .convert import convert_value, field_for_header
 from .exceptions import MoisParseError, MoisRequestError
 from .models import Coordinate, LocalDataRecord
-from .rustfs import AsyncRustfsClient, EffectiveRustfsConfig, RustfsClient
+from .rustfs import EffectiveRustfsConfig, RustfsClient
 
 DEFAULT_FILE_BASE_URL = "https://file.localdata.go.kr"
 _ITERATION_DONE = object()
@@ -29,255 +36,6 @@ _MAX_ZIP_MEMBER_BYTES = 1024 * 1024 * 1024
 
 
 class LocalDataFileClient:
-    """localdata 인허가정보 CSV 파일 다운로드/로드 클라이언트."""
-
-    def __init__(
-        self,
-        *,
-        timeout: float = 30.0,
-        retries: int = 2,
-        max_rps: float = 5.0,
-        session: Any | None = None,
-        transport: Any | None = None,
-        base_url: str = DEFAULT_FILE_BASE_URL,
-        validate_download_count: bool = True,
-    ) -> None:
-        self.timeout = timeout
-        self.transport = transport or session or build_session(
-            retries,
-            timeout=timeout,
-            max_rps=max_rps,
-        )
-        self.session = self.transport
-        self.base_url = base_url.rstrip("/")
-        self.validate_download_count = validate_download_count
-
-    @classmethod
-    def aio(
-        cls,
-        *,
-        timeout: float = 30.0,
-        retries: int = 2,
-        max_rps: float = 5.0,
-        session: Any | None = None,
-        transport: Any | None = None,
-        base_url: str = DEFAULT_FILE_BASE_URL,
-        validate_download_count: bool = True,
-    ) -> AsyncLocalDataFileClient:
-        """`async with LocalDataFileClient.aio(...)` 형태의 비동기 클라이언트를 만듭니다."""
-
-        return AsyncLocalDataFileClient(
-            timeout=timeout,
-            retries=retries,
-            max_rps=max_rps,
-            session=session,
-            transport=transport,
-            base_url=base_url,
-            validate_download_count=validate_download_count,
-        )
-
-    def __enter__(self) -> LocalDataFileClient:
-        return self
-
-    def __exit__(self, *_exc_info: object) -> None:
-        self.close()
-
-    def close(self) -> None:
-        """소유한 HTTP transport를 닫습니다."""
-
-        close = getattr(self.transport, "close", None)
-        if callable(close):
-            close()
-
-    def download_bytes(self, slug: str, *, org_code: str | None = None) -> bytes:
-        """업종 slug의 전국 또는 지역 CSV 파일을 bytes로 다운로드합니다."""
-
-        with tempfile.TemporaryFile() as output:
-            binary_output = cast(IO[bytes], output)
-            self._download_to_file(slug, binary_output, org_code=org_code)
-            binary_output.seek(0)
-            return binary_output.read()
-
-    def download(
-        self,
-        slug: str,
-        output_path: str | os.PathLike[str],
-        *,
-        org_code: str | None = None,
-    ) -> Path:
-        """파일을 다운로드해서 `output_path`에 저장하고 경로를 반환합니다."""
-
-        path = Path(output_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("wb") as output:
-            self._download_to_file(slug, output, org_code=org_code)
-        return path
-
-    def load(
-        self,
-        slug: str,
-        *,
-        org_code: str | None = None,
-        encoding: str | None = None,
-    ) -> list[LocalDataRecord]:
-        """업종 파일을 다운로드하고 `LocalDataRecord` 목록으로 로드합니다."""
-
-        return load_records_from_bytes(
-            self.download_bytes(slug, org_code=org_code),
-            slug=slug,
-            encoding=encoding,
-        )
-
-    def iter(
-        self,
-        slug: str,
-        *,
-        org_code: str | None = None,
-        encoding: str | None = None,
-    ) -> Iterator[LocalDataRecord]:
-        """업종 파일을 다운로드하고 `LocalDataRecord`를 한 행씩 순회합니다.
-
-        대용량 업종은 `load()`처럼 전체 목록을 만들지 말고 이 메서드를 사용합니다.
-        """
-
-        with tempfile.TemporaryFile() as output:
-            binary_output = cast(IO[bytes], output)
-            self._download_to_file(slug, binary_output, org_code=org_code)
-            binary_output.seek(0)
-            yield from iter_records_from_binary(binary_output, slug=slug, encoding=encoding)
-
-    def load_file(
-        self,
-        path: str | os.PathLike[str],
-        *,
-        slug: str | None = None,
-        encoding: str | None = None,
-    ) -> list[LocalDataRecord]:
-        """이미 받은 CSV 파일을 `LocalDataRecord` 목록으로 로드합니다."""
-
-        return _load_records_from_path(path, slug=slug, encoding=encoding)
-
-    def iter_file(
-        self,
-        path: str | os.PathLike[str],
-        *,
-        slug: str | None = None,
-        encoding: str | None = None,
-    ) -> Iterator[LocalDataRecord]:
-        """이미 받은 CSV 파일을 `LocalDataRecord`로 한 행씩 순회합니다."""
-
-        with Path(path).open("rb") as source:
-            yield from iter_records_from_binary(source, slug=slug, encoding=encoding)
-
-    def download_to_rustfs(
-        self,
-        slug: str,
-        output_path: str | os.PathLike[str],
-        *,
-        org_code: str | None = None,
-        object_key: str | None = None,
-        config: EffectiveRustfsConfig | None = None,
-    ) -> str:
-        """파일을 로컬 `output_path`에 다운로드하고 동시에 RustFS에 저장(업로드)합니다."""
-        self.download(slug, output_path, org_code=org_code)
-
-        cfg = config or EffectiveRustfsConfig.from_env()
-        if not cfg.enabled:
-            raise ValueError(
-                "RustFS가 활성화되어 있지 않습니다. MOIS_RUSTFS_ENABLED=true 설정이 필요합니다."
-            )
-
-        filename = Path(output_path).name
-        key = object_key or cfg.object_key(slug, filename)
-
-        client = RustfsClient(cfg)
-        client.put_file(key, Path(output_path))
-
-        return f"rustfs://{cfg.bucket}/{key}"
-
-    def __getattr__(self, name: str) -> Any:
-        """`load_hospitals()`, `iter_hospitals()` 편의 메서드를 동적으로 제공합니다."""
-
-        if name.startswith("download_") and name.endswith("_to_rustfs"):
-            slug = name[len("download_") : -len("_to_rustfs")]
-
-            def downloader_to_rustfs(output_path: str | os.PathLike[str], **kwargs: Any) -> str:
-                return self.download_to_rustfs(slug, output_path, **kwargs)
-
-            return downloader_to_rustfs
-
-        if name.startswith("iter_"):
-            slug = name[len("iter_") :]
-
-            def iterator(**kwargs: Any) -> Iterator[LocalDataRecord]:
-                return self.iter(slug, **kwargs)
-
-            return iterator
-        if name.startswith("load_"):
-            slug = name[5:]
-
-            def loader(**kwargs: Any) -> list[LocalDataRecord]:
-                return self.load(slug, **kwargs)
-
-            return loader
-        if name.startswith("download_"):
-            slug = name[len("download_") :]
-
-            def downloader(output_path: str | os.PathLike[str], **kwargs: Any) -> Path:
-                return self.download(slug, output_path, **kwargs)
-
-            return downloader
-        raise AttributeError(name)
-
-    def _absolute(self, path_or_url: str) -> str:
-        if path_or_url.startswith(("http://", "https://")):
-            return path_or_url
-        return f"{self.base_url}{path_or_url}"
-
-    def _download_to_file(
-        self,
-        slug: str,
-        output: IO[bytes],
-        *,
-        org_code: str | None = None,
-    ) -> None:
-        spec = get_file_download(slug)
-        info_url = self._absolute(spec.info_path)
-        download_url = self._absolute(spec.download_path)
-        if org_code:
-            download_url = f"{download_url}?{urlencode({'orgCode': org_code})}"
-
-        response: Any | None = None
-        try:
-            self.transport.get(
-                info_url,
-                headers={"Referer": self.base_url, "Accept": "text/html,application/xhtml+xml"},
-                timeout=self.timeout,
-            )
-            if self.validate_download_count:
-                validation = self.transport.get(
-                    self._absolute("/file/validate/download-count"),
-                    headers={"Referer": info_url, "Accept": "*/*"},
-                    timeout=self.timeout,
-                )
-                raise_for_http_error(validation, "localdata download validation")
-            response = self.transport.get(
-                download_url,
-                headers={"Referer": info_url, "Accept": "*/*"},
-                timeout=self.timeout,
-                stream=True,
-            )
-            raise_for_http_error(response, f"localdata download {slug}")
-            _write_response_to_file(response, output)
-        except HTTP_CLIENT_ERROR as exc:
-            raise MoisRequestError(f"localdata download failed: {slug}") from exc
-        finally:
-            close = getattr(response, "close", None)
-            if callable(close):
-                close()
-
-
-class AsyncLocalDataFileClient:
     """localdata 인허가정보 CSV 파일 다운로드/로드 asyncio 클라이언트."""
 
     def __init__(
@@ -286,22 +44,31 @@ class AsyncLocalDataFileClient:
         timeout: float = 30.0,
         retries: int = 2,
         max_rps: float = 5.0,
+        rate_limiter: AsyncTokenBucket | None = None,
         session: Any | None = None,
         transport: Any | None = None,
         base_url: str = DEFAULT_FILE_BASE_URL,
         validate_download_count: bool = True,
     ) -> None:
         self.timeout = timeout
-        self.transport = transport or session or build_async_session(
-            retries,
+        self.transport = resolve_transport(
+            transport,
+            session,
+            retries=retries,
             timeout=timeout,
             max_rps=max_rps,
+            rate_limiter=rate_limiter,
         )
+        self.rate_limiter = self.transport.rate_limiter
+        self._owns_transport = not isinstance(
+            transport if transport is not None else session, AsyncHttpxTransport
+        )
+        self.closed = False
         self.session = self.transport
         self.base_url = base_url.rstrip("/")
         self.validate_download_count = validate_download_count
 
-    async def __aenter__(self) -> AsyncLocalDataFileClient:
+    async def __aenter__(self) -> LocalDataFileClient:
         return self
 
     async def __aexit__(self, *_exc_info: object) -> None:
@@ -311,8 +78,9 @@ class AsyncLocalDataFileClient:
         """소유한 async HTTP transport를 닫습니다."""
 
         aclose = getattr(self.transport, "aclose", None)
-        if callable(aclose):
+        if not self.closed and self._owns_transport and callable(aclose):
             await aclose()
+        self.closed = True
 
     async def download_bytes(self, slug: str, *, org_code: str | None = None) -> bytes:
         """업종 slug의 전국 또는 지역 CSV 파일을 bytes로 비동기 다운로드합니다."""
@@ -320,7 +88,7 @@ class AsyncLocalDataFileClient:
         with tempfile.TemporaryFile() as output:
             binary_output = cast(IO[bytes], output)
             await self._download_to_file(slug, binary_output, org_code=org_code)
-            return await asyncio.to_thread(_read_all_bytes, binary_output)
+            return await run_file_io(_read_all_bytes, binary_output)
 
     async def download(
         self,
@@ -347,7 +115,7 @@ class AsyncLocalDataFileClient:
         """업종 파일을 비동기로 다운로드하고 `LocalDataRecord` 목록으로 로드합니다."""
 
         content = await self.download_bytes(slug, org_code=org_code)
-        return await asyncio.to_thread(
+        return await run_file_io(
             load_records_from_bytes,
             content,
             slug=slug,
@@ -369,7 +137,7 @@ class AsyncLocalDataFileClient:
             binary_output.seek(0)
             records = iter_records_from_binary(binary_output, slug=slug, encoding=encoding)
             while True:
-                record = await asyncio.to_thread(_next_record_or_done, records)
+                record = await run_file_io(_next_record_or_done, records)
                 if record is _ITERATION_DONE:
                     return
                 yield cast(LocalDataRecord, record)
@@ -383,7 +151,7 @@ class AsyncLocalDataFileClient:
     ) -> list[LocalDataRecord]:
         """이미 받은 CSV 파일을 비동기로 `LocalDataRecord` 목록으로 로드합니다."""
 
-        return await asyncio.to_thread(
+        return await run_file_io(
             _load_records_from_path,
             path,
             slug=slug,
@@ -402,7 +170,7 @@ class AsyncLocalDataFileClient:
         with Path(path).open("rb") as source:
             records = iter_records_from_binary(source, slug=slug, encoding=encoding)
             while True:
-                record = await asyncio.to_thread(_next_record_or_done, records)
+                record = await run_file_io(_next_record_or_done, records)
                 if record is _ITERATION_DONE:
                     return
                 yield cast(LocalDataRecord, record)
@@ -428,8 +196,8 @@ class AsyncLocalDataFileClient:
         filename = Path(output_path).name
         key = object_key or cfg.object_key(slug, filename)
 
-        client = AsyncRustfsClient(cfg)
-        await client.put_file(key, Path(output_path))
+        async with RustfsClient(cfg, rate_limiter=self.rate_limiter) as client:
+            await client.put_file(key, Path(output_path))
 
         return f"rustfs://{cfg.bucket}/{key}"
 
@@ -482,6 +250,8 @@ class AsyncLocalDataFileClient:
         *,
         org_code: str | None = None,
     ) -> None:
+        if self.closed:
+            raise RuntimeError("client is closed")
         spec = get_file_download(slug)
         info_url = self._absolute(spec.info_path)
         download_url = self._absolute(spec.download_path)
@@ -490,18 +260,25 @@ class AsyncLocalDataFileClient:
 
         response: Any | None = None
         try:
-            await self.transport.get(
+            landing = await self.transport.get(
                 info_url,
                 headers={"Referer": self.base_url, "Accept": "text/html,application/xhtml+xml"},
                 timeout=self.timeout,
             )
+            try:
+                raise_for_http_error(landing, "localdata landing")
+            finally:
+                await close_response(landing)
             if self.validate_download_count:
                 validation = await self.transport.get(
                     self._absolute("/file/validate/download-count"),
                     headers={"Referer": info_url, "Accept": "*/*"},
                     timeout=self.timeout,
                 )
-                raise_for_http_error(validation, "localdata download validation")
+                try:
+                    raise_for_http_error(validation, "localdata download validation")
+                finally:
+                    await close_response(validation)
             response = await self.transport.get(
                 download_url,
                 headers={"Referer": info_url, "Accept": "*/*"},
@@ -513,13 +290,7 @@ class AsyncLocalDataFileClient:
         except HTTP_CLIENT_ERROR as exc:
             raise MoisRequestError(f"localdata download failed: {slug}") from exc
         finally:
-            aclose = getattr(response, "aclose", None)
-            if callable(aclose):
-                await aclose()
-            else:
-                close = getattr(response, "close", None)
-                if callable(close):
-                    close()
+            await close_response(response)
 
 
 def load_records_from_bytes(
@@ -692,30 +463,14 @@ def _is_zip_binary(source: IO[bytes]) -> bool:
         source.seek(position)
 
 
-def _write_response_to_file(response: Any, output: IO[bytes]) -> None:
-    iter_bytes = getattr(response, "iter_bytes", None)
-    if callable(iter_bytes):
-        for chunk in iter_bytes(chunk_size=1024 * 1024):
-            if chunk:
-                output.write(chunk)
-        return
-    iter_content = getattr(response, "iter_content", None)
-    if callable(iter_content):
-        for chunk in iter_content(chunk_size=1024 * 1024):
-            if chunk:
-                output.write(chunk)
-        return
-    output.write(bytes(getattr(response, "content", b"")))
-
-
 async def _write_response_to_file_async(response: Any, output: IO[bytes]) -> None:
     aiter_bytes = getattr(response, "aiter_bytes", None)
     if callable(aiter_bytes):
         async for chunk in aiter_bytes(chunk_size=1024 * 1024):
             if chunk:
-                output.write(chunk)
+                await run_file_io(output.write, chunk)
         return
-    _write_response_to_file(response, output)
+    await run_file_io(output.write, bytes(getattr(response, "content", b"")))
 
 
 def _decode_csv(content: bytes, encoding: str | None) -> str:

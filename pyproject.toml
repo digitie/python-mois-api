@@ -29,6 +29,7 @@ dependencies = [
   "pydantic>=2.7",
   "pyproj>=3.6",
   "SQLAlchemy>=2.0",
+  "aiosqlite>=0.20",
 ]
 
 [project.optional-dependencies]
@@ -67,6 +68,7 @@ strict = true
 warn_unused_ignores = true
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 testpaths = ["tests", "packages/mois-debug-ui/tests"]
 pythonpath = ["src", "packages/mois-debug-ui/src"]
 addopts = "-ra"

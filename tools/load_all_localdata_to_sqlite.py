@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import os
 import sys
@@ -38,7 +39,7 @@ from mois import (  # noqa: E402
 from mois.files import iter_records_from_binary  # noqa: E402
 
 
-def main() -> None:
+async def main() -> None:
     """명령행 진입점."""
 
     parser = argparse.ArgumentParser(
@@ -118,86 +119,86 @@ def main() -> None:
         )
     else:
         spatialite_enabled = False
-    client = LocalDataFileClient(timeout=args.timeout)
+    async with LocalDataFileClient(timeout=args.timeout) as client:
 
-    failures: list[dict[str, str]] = []
-    total_loaded = 0
-    _write_progress(
-        progress_path,
-        "run_start",
-        total=len(downloads),
-        output_dir=str(output_dir),
-        database_path=str(args.database_path),
-        spatialite_enabled=spatialite_enabled,
-    )
-    for index, download in enumerate(downloads, start=1):
-        try:
-            if args.download_only:
-                _download_one(
+        failures: list[dict[str, str]] = []
+        total_loaded = 0
+        _write_progress(
+            progress_path,
+            "run_start",
+            total=len(downloads),
+            output_dir=str(output_dir),
+            database_path=str(args.database_path),
+            spatialite_enabled=spatialite_enabled,
+        )
+        for index, download in enumerate(downloads, start=1):
+            try:
+                if args.download_only:
+                    (await _download_one(
+                        client=client,
+                        download=download,
+                        output_dir=output_dir,
+                        progress_path=progress_path,
+                        index=index,
+                        total=len(downloads),
+                        force_download=args.force_download,
+                    ))
+                    continue
+                if engine is None:
+                    raise RuntimeError("database engine is not initialized")
+                loaded = (await _download_and_load_one(
                     client=client,
+                    engine=engine,
                     download=download,
                     output_dir=output_dir,
                     progress_path=progress_path,
                     index=index,
                     total=len(downloads),
+                    batch_size=args.batch_size,
+                    progress_every=args.progress_every,
                     force_download=args.force_download,
-                )
-                continue
-            if engine is None:
-                raise RuntimeError("database engine is not initialized")
-            loaded = _download_and_load_one(
-                client=client,
-                engine=engine,
-                download=download,
-                output_dir=output_dir,
-                progress_path=progress_path,
-                index=index,
-                total=len(downloads),
-                batch_size=args.batch_size,
-                progress_every=args.progress_every,
-                force_download=args.force_download,
-                replace_slug=args.replace_slug,
-            )
-            total_loaded += loaded
-        except Exception as exc:
-            failure = {"slug": download.slug, "error": repr(exc)}
-            failures.append(failure)
-            _write_progress(progress_path, "failed", **failure)
-            if not args.continue_on_error:
-                raise
+                    replace_slug=args.replace_slug,
+                ))
+                total_loaded += loaded
+            except Exception as exc:
+                failure = {"slug": download.slug, "error": repr(exc)}
+                failures.append(failure)
+                _write_progress(progress_path, "failed", **failure)
+                if not args.continue_on_error:
+                    raise
 
-    if engine is not None and not args.skip_refresh_geometry:
-        _write_progress(progress_path, "refresh_geometry_start")
-        refresh_spatial_geometries(engine)
-        _write_progress(progress_path, "refresh_geometry_complete")
+        if engine is not None and not args.skip_refresh_geometry:
+            _write_progress(progress_path, "refresh_geometry_start")
+            refresh_spatial_geometries(engine)
+            _write_progress(progress_path, "refresh_geometry_complete")
 
-    if engine is not None and not args.skip_refresh_derived:
-        _write_progress(progress_path, "refresh_derived_start")
-        refresh_sqlite_derived_tables(engine)
-        _write_progress(progress_path, "refresh_derived_complete")
+        if engine is not None and not args.skip_refresh_derived:
+            _write_progress(progress_path, "refresh_derived_start")
+            refresh_sqlite_derived_tables(engine)
+            _write_progress(progress_path, "refresh_derived_complete")
 
-    _write_progress(
-        progress_path,
-        "run_complete",
-        total=len(downloads),
-        total_loaded=total_loaded,
-        failures=failures,
-    )
-    print(
-        json.dumps(
-            {
-                "total": len(downloads),
-                "total_loaded": total_loaded,
-                "failures": failures,
-                "database_path": str(args.database_path),
-                "spatialite_enabled": spatialite_enabled,
-            },
-            ensure_ascii=False,
+        _write_progress(
+            progress_path,
+            "run_complete",
+            total=len(downloads),
+            total_loaded=total_loaded,
+            failures=failures,
         )
-    )
+        print(
+            json.dumps(
+                {
+                    "total": len(downloads),
+                    "total_loaded": total_loaded,
+                    "failures": failures,
+                    "database_path": str(args.database_path),
+                    "spatialite_enabled": spatialite_enabled,
+                },
+                ensure_ascii=False,
+            )
+        )
 
 
-def _download_one(
+async def _download_one(
     *,
     client: LocalDataFileClient,
     download: FileDownload,
@@ -208,7 +209,7 @@ def _download_one(
     force_download: bool,
 ) -> Path:
     _write_progress(progress_path, "start", index=index, total=total, slug=download.slug)
-    path = _ensure_download_file(
+    path = (await _ensure_download_file(
         client=client,
         download=download,
         output_dir=output_dir,
@@ -216,7 +217,7 @@ def _download_one(
         index=index,
         total=total,
         force_download=force_download,
-    )
+    ))
     _write_progress(
         progress_path,
         "download_only_complete",
@@ -228,7 +229,7 @@ def _download_one(
     return path
 
 
-def _download_and_load_one(
+async def _download_and_load_one(
     *,
     client: LocalDataFileClient,
     engine: Engine,
@@ -243,7 +244,7 @@ def _download_and_load_one(
     replace_slug: bool,
 ) -> int:
     _write_progress(progress_path, "start", index=index, total=total, slug=download.slug)
-    path = _ensure_download_file(
+    path = (await _ensure_download_file(
         client=client,
         download=download,
         output_dir=output_dir,
@@ -251,7 +252,7 @@ def _download_and_load_one(
         index=index,
         total=total,
         force_download=force_download,
-    )
+    ))
 
     if replace_slug:
         delete_slug(engine, download.slug)
@@ -277,7 +278,7 @@ def _download_and_load_one(
     return loaded
 
 
-def _ensure_download_file(
+async def _ensure_download_file(
     *,
     client: LocalDataFileClient,
     download: FileDownload,
@@ -292,7 +293,7 @@ def _ensure_download_file(
         tmp_path = path.with_suffix(path.suffix + ".tmp")
         if tmp_path.exists():
             tmp_path.unlink()
-        client.download(download.slug, tmp_path)
+        (await client.download(download.slug, tmp_path))
         tmp_path.replace(path)
         _write_progress(
             progress_path,
@@ -357,4 +358,4 @@ def _write_progress(progress_path: Path, event: str, **payload: Any) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

@@ -11,7 +11,6 @@ import pytest
 import respx
 
 from mois import (
-    AsyncRustfsClient,
     EffectiveRustfsConfig,
     LocalDataFileClient,
     RustfsClient,
@@ -57,7 +56,7 @@ def test_normalize_object_prefix_and_join_key() -> None:
     assert join_object_key("prefix", "slug", "file.zip") == "prefix/slug/file.zip"
 
 
-def test_download_to_rustfs_raises_value_error_if_disabled(tmp_path: Path) -> None:
+async def test_download_to_rustfs_raises_value_error_if_disabled(tmp_path: Path) -> None:
     """RustFS 연동이 꺼져 있을 때 download_to_rustfs 호출 시 ValueError를 발생하는지 검증합니다."""
     config = EffectiveRustfsConfig(
         enabled=False,
@@ -72,17 +71,17 @@ def test_download_to_rustfs_raises_value_error_if_disabled(tmp_path: Path) -> No
     
     # download를 mocking하여 로컬 다운로드는 수행되었다고 가정
     class FakeSession:
-        def get(self, url: str, **kwargs: object) -> httpx.Response:
+        async def get(self, url: str, **kwargs: object) -> httpx.Response:
             return httpx.Response(200, content=CSV_TEXT.encode("cp949"))
 
     client = LocalDataFileClient(session=FakeSession())
     
     with pytest.raises(ValueError, match="RustFS가 활성화되어 있지 않습니다"):
-        client.download_to_rustfs("hospitals", tmp_path / "test.csv", config=config)
+        (await client.download_to_rustfs("hospitals", tmp_path / "test.csv", config=config))
 
 
 @respx.mock
-def test_sync_rustfs_client_put_file_success(tmp_path: Path) -> None:
+async def test_sync_rustfs_client_put_file_success(tmp_path: Path) -> None:
     """동기식 RustFS 클라이언트가 버킷을 확인하고 파일을 정상적으로 PUT하는지 모킹 테스트합니다."""
     config = EffectiveRustfsConfig(
         enabled=True,
@@ -106,7 +105,7 @@ def test_sync_rustfs_client_put_file_success(tmp_path: Path) -> None:
     test_file.write_text(CSV_TEXT)
 
     client = RustfsClient(config)
-    etag = client.put_file("prefix/hospitals/file.csv", test_file)
+    etag = (await client.put_file("prefix/hospitals/file.csv", test_file))
     assert etag == "etag-value"
 
 
@@ -138,13 +137,13 @@ async def test_async_rustfs_client_put_file_success(tmp_path: Path) -> None:
     test_file = tmp_path / "file.csv"
     test_file.write_text(CSV_TEXT)
 
-    client = AsyncRustfsClient(config)
+    client = RustfsClient(config)
     etag = await client.put_file("prefix/hospitals/file.csv", test_file)
     assert etag == "etag-value"
 
 
 @respx.mock
-def test_local_data_file_client_download_to_rustfs(tmp_path: Path) -> None:
+async def test_local_data_file_client_download_to_rustfs(tmp_path: Path) -> None:
     """LocalDataFileClient를 통해 로컬 다운로드와 RustFS 저장이
 
     정상적으로 연계 작동하는지 검증합니다.
@@ -180,14 +179,14 @@ def test_local_data_file_client_download_to_rustfs(tmp_path: Path) -> None:
     local_path = tmp_path / "hospitals.csv"
     
     # download_to_rustfs 명시적 호출
-    uri = client.download_to_rustfs("hospitals", local_path, config=config)
+    uri = (await client.download_to_rustfs("hospitals", local_path, config=config))
     assert uri == "rustfs://test-bucket/prefix/hospitals/hospitals.csv"
     assert local_path.exists()
     assert local_path.read_text(encoding="cp949") == CSV_TEXT
 
     # 동적 편의 메서드 호출 (__getattr__ 검증)
     local_path_dynamic = tmp_path / "hospitals_dyn.csv"
-    uri_dyn = client.download_hospitals_to_rustfs(local_path_dynamic, config=config)
+    uri_dyn = (await client.download_hospitals_to_rustfs(local_path_dynamic, config=config))
     assert uri_dyn == "rustfs://test-bucket/prefix/hospitals/hospitals_dyn.csv"
     assert local_path_dynamic.exists()
 
@@ -195,7 +194,7 @@ def test_local_data_file_client_download_to_rustfs(tmp_path: Path) -> None:
 @respx.mock
 @pytest.mark.asyncio
 async def test_async_local_data_file_client_download_to_rustfs(tmp_path: Path) -> None:
-    """AsyncLocalDataFileClient를 통해 로컬 다운로드와 RustFS 저장이
+    """LocalDataFileClient를 통해 로컬 다운로드와 RustFS 저장이
 
     정상적으로 연계 작동하는지 검증합니다.
     """
@@ -226,7 +225,7 @@ async def test_async_local_data_file_client_download_to_rustfs(tmp_path: Path) -
         return_value=httpx.Response(200, headers={"etag": '"mock-etag"'})
     )
 
-    async with LocalDataFileClient.aio() as client:
+    async with LocalDataFileClient() as client:
         local_path = tmp_path / "hospitals.csv"
         
         # download_to_rustfs 명시적 호출

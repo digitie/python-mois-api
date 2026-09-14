@@ -613,31 +613,23 @@ def write_api_list(root: Path) -> None:
     lines.append("")
     lines.append("## 코드에서 목록 확인")
     lines.append("")
-    lines.append("```python")
-    lines.append(
-        "from mois import ("
+    lines.extend(
+        [
+            "```python",
+            "from mois import (",
+            "    list_file_downloads,",
+            "    list_incremental_openapi_endpoints,",
+            "    list_openapi_endpoints,",
+            "    list_openapi_services,",
+            ")",
+            "",
+            "services = list_openapi_services()",
+            "incremental = list_incremental_openapi_endpoints()",
+            'endpoints = list_openapi_endpoints(kind="history")',
+            "downloads = list_file_downloads()",
+            "```",
+        ]
     )
-    lines.append(
-        "    list_file_downloads,"
-    )
-    lines.append(
-        "    list_incremental_openapi_endpoints,"
-    )
-    lines.append(
-        "    list_openapi_endpoints,"
-    )
-    lines.append(
-        "    list_openapi_services,"
-    )
-    lines.append(
-        ")"
-    )
-    lines.append("")
-    lines.append("services = list_openapi_services()")
-    lines.append("incremental = list_incremental_openapi_endpoints()")
-    lines.append('endpoints = list_openapi_endpoints(kind="history")')
-    lines.append("downloads = list_file_downloads()")
-    lines.append("```")
     (root / "api-list.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -664,8 +656,7 @@ def write_incremental_openapi(root: Path) -> None:
     lines.append("")
     lines.append("- 기본 증분 조건은 `cond[DAT_UPDT_PNT::GTE]=YYYYMMDDHHMMSS`입니다.")
     lines.append(
-        "- `DAT_UPDT_PNT`는 원천데이터 수정과 개방데이터 보강 수정 시점을 "
-        "함께 반영합니다."
+        "- `DAT_UPDT_PNT`는 원천데이터 수정과 개방데이터 보강 수정 시점을 함께 반영합니다."
     )
     lines.append(
         "- 원천데이터 최종수정시점만 기준으로 삼을 때는 "
@@ -676,43 +667,56 @@ def write_incremental_openapi(root: Path) -> None:
         "`pageNo` 기반으로 페이지를 넘깁니다."
     )
     lines.append("")
-    lines.append("```python")
-    lines.append("from mois import MoisClient, list_incremental_openapi_endpoints")
+    lines.extend(
+        [
+            "```python",
+            "import asyncio",
+            "from mois import MoisClient, list_incremental_openapi_endpoints",
+            "",
+            "",
+            "async def main() -> None:",
+            "    async with MoisClient.from_env() as client:",
+            '        changed = (await client.get_updated_hospitals("20260505000000"))',
+            "        source_changed = (await client.get_updated_hospitals(",
+            '            "20260505000000",',
+            "            source_modified=True,",
+            "        ))",
+            "",
+            "    for api in list_incremental_openapi_endpoints():",
+            "        print(api.service_slug, api.application_url, api.get_method)",
+            "",
+            "",
+            "asyncio.run(main())",
+            "```",
+        ]
+    )
     lines.append("")
-    lines.append("with MoisClient.from_env() as client:")
-    lines.append('    changed = client.get_updated_hospitals("20260505000000")')
-    lines.append("    source_changed = client.get_updated_hospitals(")
-    lines.append('        "20260505000000",')
-    lines.append("        source_modified=True,")
-    lines.append("    )")
+    lines.append("비동기 배치에서는 `MoisClient()`를 사용합니다.")
     lines.append("")
-    lines.append("for api in list_incremental_openapi_endpoints():")
-    lines.append("    print(api.service_slug, api.application_url, api.get_method)")
-    lines.append("```")
-    lines.append("")
-    lines.append("비동기 배치에서는 `MoisClient.aio()`를 사용합니다.")
-    lines.append("")
-    lines.append("```python")
-    lines.append("import asyncio")
-    lines.append("")
-    lines.append("from mois import MoisClient")
-    lines.append("")
-    lines.append("")
-    lines.append("async def main():")
-    lines.append("    async with MoisClient.aio() as client:")
-    lines.append('        changed = await client.get_updated_hospitals("20260505000000")')
-    lines.append("        print(len(changed))")
-    lines.append("")
-    lines.append("")
-    lines.append("asyncio.run(main())")
-    lines.append("```")
+    lines.extend(
+        [
+            "```python",
+            "import asyncio",
+            "",
+            "from mois import MoisClient",
+            "",
+            "",
+            "async def main():",
+            "    async with MoisClient() as client:",
+            '        changed = await client.get_updated_hospitals("20260505000000")',
+            "        print(len(changed))",
+            "",
+            "",
+            "asyncio.run(main())",
+            "```",
+        ]
+    )
     lines.append("")
     lines.append("## 전체 증분 API 목록")
     lines.append("")
     lines.append(f"- 증분 조회 대상 OpenAPI: {len(INCREMENTAL_OPENAPI_ENDPOINTS)}개")
     lines.append(
-        "- 모든 항목은 같은 호출 URL의 `info` 엔드포인트에 조건 파라미터를 "
-        "붙여 사용합니다."
+        "- 모든 항목은 같은 호출 URL의 `info` 엔드포인트에 조건 파라미터를 붙여 사용합니다."
     )
     lines.append("")
     lines.append(
@@ -783,74 +787,103 @@ def write_file_downloads(root: Path) -> None:
     lines.append("")
     lines.append("## 기본 사용")
     lines.append("")
-    lines.append("```python")
-    lines.append("from mois import LocalDataFileClient")
-    lines.append("")
-    lines.append("with LocalDataFileClient() as files:")
-    lines.append('    records = files.load("hospitals")')
-    lines.append("")
-    lines.append("first = records[0]")
-    lines.append("print(first.business_name)")
-    lines.append("print(first.license_date)")
-    lines.append("print(first.coordinates.lat, first.coordinates.lon)")
-    lines.append("print(first.coordinates.wgs84_point.as_tuple())  # (lat, lon)")
-    lines.append("```")
+    lines.extend(
+        [
+            "```python",
+            "import asyncio",
+            "from mois import LocalDataFileClient",
+            "",
+            "",
+            "async def main() -> None:",
+            "    async with LocalDataFileClient() as files:",
+            '        records = (await files.load("hospitals"))',
+            "",
+            "    first = records[0]",
+            "    print(first.business_name)",
+            "    print(first.license_date)",
+            "    print(first.coordinates.lat, first.coordinates.lon)",
+            "    print(first.coordinates.wgs84_point.as_tuple())  # (lat, lon)",
+            "",
+            "",
+            "asyncio.run(main())",
+            "```",
+        ]
+    )
     lines.append("")
     lines.append(
         "대용량 업종은 전체 목록을 메모리에 올리는 `load()`보다 스트리밍 API를 사용합니다."
     )
     lines.append("")
-    lines.append("```python")
-    lines.append("with LocalDataFileClient() as files:")
-    lines.append("    for record in files.iter_hospitals():")
-    lines.append("        print(record.management_number, record.business_name)")
-    lines.append("```")
-    lines.append("")
-    lines.append("asyncio 환경에서는 `aio()`를 사용합니다.")
-    lines.append("")
-    lines.append("```python")
-    lines.append("import asyncio")
-    lines.append("")
-    lines.append("from mois import LocalDataFileClient")
-    lines.append("")
-    lines.append("")
-    lines.append("async def main():")
-    lines.append("    async with LocalDataFileClient.aio() as files:")
-    lines.append('        records = await files.load("hospitals")')
-    lines.append("        print(records[0].business_name)")
-    lines.append("")
-    lines.append(
-        "        local_records = await files.load_file("
-        '"artifacts/localdata/hospitals_info.bin", slug="hospitals")'
+    lines.extend(
+        [
+            "```python",
+            "import asyncio",
+            "from mois import LocalDataFileClient",
+            "",
+            "",
+            "async def main() -> None:",
+            "    async with LocalDataFileClient() as files:",
+            "        async for record in files.iter_hospitals():",
+            "            print(record.management_number, record.business_name)",
+            "",
+            "",
+            "asyncio.run(main())",
+            "```",
+        ]
     )
-    lines.append("        print(local_records[0].management_number)")
     lines.append("")
-    lines.append("        async for record in files.iter_hospitals():")
-    lines.append("            print(record.management_number, record.business_name)")
-    lines.append("            break")
+    lines.append("클라이언트는 비동기 전용이며 async with로 사용합니다.")
     lines.append("")
-    lines.append(
-        "        async for record in files.iter_file("
-        '"artifacts/localdata/hospitals_info.bin", slug="hospitals"):'
+    lines.extend(
+        [
+            "```python",
+            "import asyncio",
+            "",
+            "from mois import LocalDataFileClient",
+            "",
+            "",
+            "async def main():",
+            "    async with LocalDataFileClient() as files:",
+            '        records = await files.load("hospitals")',
+            "        print(records[0].business_name)",
+            "",
+            '        local_records = await files.load_file("artifacts/localdata/hospitals_info.bin", slug="hospitals")',  # noqa: E501
+            "        print(local_records[0].management_number)",
+            "",
+            "        async for record in files.iter_hospitals():",
+            "            print(record.management_number, record.business_name)",
+            "",
+            '        async for record in files.iter_file("artifacts/localdata/hospitals_info.bin", slug="hospitals"):',  # noqa: E501
+            "            print(record.management_number, record.business_name)",
+            "",
+            "",
+            "asyncio.run(main())",
+            "```",
+        ]
     )
-    lines.append("            print(record.management_number, record.business_name)")
-    lines.append("            break")
-    lines.append("")
-    lines.append("")
-    lines.append("asyncio.run(main())")
-    lines.append("```")
     lines.append("")
     lines.append("## 지역별 다운로드")
     lines.append("")
     lines.append(
-        "지역별 파일은 localdata의 `orgCode`를 그대로 전달합니다. "
-        "예: 서울종로구 `3000000`."
+        "지역별 파일은 localdata의 `orgCode`를 그대로 전달합니다. 예: 서울종로구 `3000000`."
     )
     lines.append("")
-    lines.append("```python")
-    lines.append("with LocalDataFileClient() as files:")
-    lines.append('    records = files.load("hospitals", org_code="3000000")')
-    lines.append("```")
+    lines.extend(
+        [
+            "```python",
+            "import asyncio",
+            "from mois import LocalDataFileClient",
+            "",
+            "",
+            "async def main() -> None:",
+            "    async with LocalDataFileClient() as files:",
+            '        records = (await files.load("hospitals", org_code="3000000"))',
+            "",
+            "",
+            "asyncio.run(main())",
+            "```",
+        ]
+    )
     lines.append("")
     lines.append("## 변환 규칙")
     lines.append("")
@@ -917,10 +950,7 @@ def write_tourism_license_data(root: Path) -> None:
         "- `간접`: 식음, 쇼핑, 도시 여가, 야간 상권처럼 여행 경험과 관광권역 "
         "분석에 자주 쓰이는 업종"
     )
-    lines.append(
-        "- `편의`: 병원, 약국, 주유, 세탁처럼 여행 중 편의·안전·장기 체류를 "
-        "보조하는 업종"
-    )
+    lines.append("- `편의`: 병원, 약국, 주유, 세탁처럼 여행 중 편의·안전·장기 체류를 보조하는 업종")
     lines.append("")
     lines.append(
         "공급망, 제조, 도매, 백오피스 성격이 강하고 여행자 POI로 바로 쓰기 어려운 "
@@ -955,32 +985,52 @@ def write_tourism_license_data(root: Path) -> None:
     lines.append("")
     lines.append("## 사용 예")
     lines.append("")
-    lines.append("```python")
-    lines.append("from mois import LocalDataFileClient")
-    lines.append("")
-    lines.append("with LocalDataFileClient() as files:")
-    lines.append("    for record in files.iter_tourist_accommodations():")
-    lines.append("        point = record.coordinates.wgs84_point if record.coordinates else None")
-    lines.append("        print(record.business_name, point)")
-    lines.append("```")
+    lines.extend(
+        [
+            "```python",
+            "import asyncio",
+            "from mois import LocalDataFileClient",
+            "",
+            "",
+            "async def main() -> None:",
+            "    async with LocalDataFileClient() as files:",
+            "        async for record in files.iter_tourist_accommodations():",
+            "            point = record.coordinates.wgs84_point if record.coordinates else None",
+            "            print(record.business_name, point)",
+            "",
+            "",
+            "asyncio.run(main())",
+            "```",
+        ]
+    )
     lines.append("")
     lines.append("여러 업종을 한 DB에 넣을 때는 `service_slug`를 함께 저장해 업종을 구분합니다.")
     lines.append("")
-    lines.append("```python")
-    lines.append("from mois import LocalDataFileClient")
-    lines.append("")
-    lines.append("TOURISM_SLUGS = [")
-    lines.append('    "tourist_accommodations",')
-    lines.append('    "lodgings",')
-    lines.append('    "tourist_restaurants",')
-    lines.append('    "pharmacies",')
-    lines.append("]")
-    lines.append("")
-    lines.append("with LocalDataFileClient() as files:")
-    lines.append("    for slug in TOURISM_SLUGS:")
-    lines.append("        for record in files.iter(slug):")
-    lines.append("            print(slug, record.business_name)")
-    lines.append("```")
+    lines.extend(
+        [
+            "```python",
+            "import asyncio",
+            "from mois import LocalDataFileClient",
+            "",
+            "",
+            "async def main() -> None:",
+            "    TOURISM_SLUGS = [",
+            '        "tourist_accommodations",',
+            '        "lodgings",',
+            '        "tourist_restaurants",',
+            '        "pharmacies",',
+            "    ]",
+            "",
+            "    async with LocalDataFileClient() as files:",
+            "        for slug in TOURISM_SLUGS:",
+            "            async for record in files.iter(slug):",
+            "                print(slug, record.business_name)",
+            "",
+            "",
+            "asyncio.run(main())",
+            "```",
+        ]
+    )
     (root / "tourism-license-data.md").write_text(
         "\n".join(lines) + "\n",
         encoding="utf-8",
@@ -988,7 +1038,7 @@ def write_tourism_license_data(root: Path) -> None:
 
 
 def main() -> None:
-    root = Path("docs")
+    root = Path(__file__).resolve().parents[1] / "docs"
     root.mkdir(exist_ok=True)
     write_api_list(root)
     write_incremental_openapi(root)

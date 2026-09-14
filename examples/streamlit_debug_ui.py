@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
@@ -162,15 +163,17 @@ def _raw_response_tab(selected: dict[str, Any], service_key: str, *, timeout: fl
         st.error("필수 파라미터를 입력하세요: " + ", ".join(missing))
         return
 
-    run = _execute_debug_request(
-        selected,
-        service_key,
-        timeout=timeout,
-        params=params,
-        conditions=request_options["conditions"],
-        kind=request_options["kind"],
-        page_no=request_options["page_no"],
-        num_of_rows=request_options["num_of_rows"],
+    run = asyncio.run(
+        _execute_debug_request(
+            selected,
+            service_key,
+            timeout=timeout,
+            params=params,
+            conditions=request_options["conditions"],
+            kind=request_options["kind"],
+            page_no=request_options["page_no"],
+            num_of_rows=request_options["num_of_rows"],
+        )
     )
     _store_run(selected, request_options["kind"], run)
 
@@ -324,7 +327,7 @@ def _parse_extra_params(text: str) -> dict[str, Any]:
     }
 
 
-def _execute_debug_request(
+async def _execute_debug_request(
     selected: dict[str, Any],
     service_key: str,
     *,
@@ -366,7 +369,7 @@ def _execute_debug_request(
 
     trace.append("MoisClient를 생성했습니다.")
     try:
-        run = client.debug_request(
+        run = await client.debug_request(
             selected["service_key"],
             kind=kind,
             page_no=page_no,
@@ -375,7 +378,7 @@ def _execute_debug_request(
             params=params,
         )
     finally:
-        client.close()
+        await client.aclose()
 
     elapsed_ms = round((time.perf_counter() - start) * 1000, 1)
     combined_trace = (*trace, *run.trace, f"총 소요시간: {elapsed_ms}ms")

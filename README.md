@@ -7,7 +7,7 @@
 `python-mois-api`는 행정안전부 지방행정 인허가정보를 Python에서 다루기 위한 라이브러리입니다. 설치
 패키지 이름은 `python-mois-api`, import 패키지 이름은 `mois`입니다. 공공데이터포털 지방행정
 인허가정보 OpenAPI 195종과 `file.localdata.go.kr`의 인허가정보 파일 다운로드 195종을 같은 slug로
-카탈로그화해 동기/비동기 클라이언트로 제공합니다. 주소 정규화와 정/역 지오코딩은 담당하지 않고, 별도
+카탈로그화해 비동기 전용 클라이언트로 제공합니다. 주소 정규화와 정/역 지오코딩은 담당하지 않고, 별도
 라이브러리 [`kor-travel-geo`](https://github.com/digitie/kor-travel-geo)(구 `python-kraddr-geo`,
 GPL-3.0-only)에 위임합니다(ADR-002).
 
@@ -18,10 +18,10 @@ GPL-3.0-only)에 위임합니다(ADR-002).
 
 | 표면 | 진입점 | 설명 |
 |------|--------|------|
-| OpenAPI 클라이언트 | `from mois import MoisClient` | 195개 업종 조회/이력조회/증분조회, 동기와 `MoisClient.aio()` 비동기 |
+| OpenAPI 클라이언트 | `from mois import MoisClient` | 195개 업종 조회/이력조회/증분조회, 동기와 `MoisClient()` 비동기 |
 | 파일 다운로드 클라이언트 | `from mois import LocalDataFileClient` | localdata 인허가정보 파일 195종 다운로드와 스트리밍 로드 |
 | SQLite/SpatiaLite 적재 | `from mois import create_sqlite_schema, upsert_places` | 마스터-디테일 + JSON 컬럼 로컬 DB 모델과 증분 동기화 helper |
-| 지오코딩 검증 helper | `validate_address_geocoding_probe[_async]` | `kor-travel-geo` 결과와 자체 좌표를 비교만 함(ADR-002) |
+| 지오코딩 검증 helper | `validate_address_geocoding_probe` | `kor-travel-geo` 결과와 자체 좌표를 비교만 함(ADR-002) |
 | DB 브라우저(별도 패키지) | `python -m mois_debug_ui.backend` | 내부 운영용 FastAPI + React 콘솔(`packages/mois-debug-ui`, ADR-007) |
 
 ## 먼저 읽을 문서
@@ -87,18 +87,23 @@ client = MoisClient.from_env()
 ## 예제
 
 ```python
+import asyncio
 from datetime import datetime
 from zoneinfo import ZoneInfo
-
 from mois import MoisClient
 
-with MoisClient.from_env() as client:
-    changed = client.get_updated(
-        "hospitals",
-        datetime(2026, 5, 5, 0, 0, 0, tzinfo=ZoneInfo("Asia/Seoul")),
-    )
-    for item in changed:
-        print(item["MNG_NO"], item.get("BPLC_NM"))
+
+async def main() -> None:
+    async with MoisClient.from_env() as client:
+        changed = (await client.get_updated(
+            "hospitals",
+            datetime(2026, 5, 5, 0, 0, 0, tzinfo=ZoneInfo("Asia/Seoul")),
+        ))
+        for item in changed:
+            print(item["MNG_NO"], item.get("BPLC_NM"))
+
+
+asyncio.run(main())
 ```
 
 이 예제는 `hospitals` 업종의 동기 증분조회만 다룹니다. 비동기 호출, 파일 다운로드, SQLite 적재, DB
@@ -127,11 +132,11 @@ python -m mypy src/mois
 
 | 경로 | 역할 |
 |------|------|
-| `src/mois/client.py` | `MoisClient`/`AsyncMoisClient` OpenAPI 호출 |
-| `src/mois/files.py` | `LocalDataFileClient`/`AsyncLocalDataFileClient` 파일 다운로드/로드 |
+| `src/mois/client.py` | `MoisClient` OpenAPI 호출 |
+| `src/mois/files.py` | `LocalDataFileClient` 파일 다운로드/로드 |
 | `src/mois/catalog.py` | 195개 업종 OpenAPI/파일 카탈로그(자동 생성 기준, ADR-006) |
 | `src/mois/db.py` | SQLite/SpatiaLite 적재 모델과 upsert/iterator(ADR-008) |
-| `src/mois/geocoding.py` | `validate_address_geocoding_probe[_async]` 검증 helper(ADR-002) |
+| `src/mois/geocoding.py` | `validate_address_geocoding_probe` 검증 helper(ADR-002) |
 | `src/mois/models.py`, `coords.py`, `convert.py`, `parser.py` | 응답/좌표 값 객체와 변환 |
 | `tests/` | 네트워크 없는 단위 테스트(fixture 재생). live 테스트는 `@pytest.mark.live` |
 | `tools/` | 문서/카탈로그 생성, 전체 localdata 적재 운영 스크립트 |
@@ -155,3 +160,9 @@ MIT 라이선스는 이 저장소에 포함된 소스 코드와 문서에만 적
 `file.localdata.go.kr` 파일 다운로드는 공공데이터포털/행정안전부가 정한 이용약관과 재배포 조건을
 따르며, 이 라이브러리는 그 데이터를 다루는 기술 도구일 뿐 데이터의 정확성이나 법적 효력을 보장하지
 않습니다.
+
+## 비동기 전용 호출과 TPS
+
+공개 네트워크 클라이언트는 native async 하나로 통합했다.
+`max_rps` 또는 공유 `AsyncTokenBucket`을 `rate_limiter=`에 전달한다.
+기존 동기/비동기 병행 지침은 ADR-013로 대체했다. [호출·TPS·소유권·DB 예제](docs/async-tps.md)를 따른다.

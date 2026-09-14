@@ -25,11 +25,11 @@ class FakeSession:
     def __init__(self, response: FakeResponse) -> None:
         self.response = response
 
-    def get(self, url: str, **kwargs: Any) -> FakeResponse:
+    async def get(self, url: str, **kwargs: Any) -> FakeResponse:
         return self.response
 
 
-def test_debug_request_captures_and_masks_openapi_run(tmp_path: Path) -> None:
+async def test_debug_request_captures_and_masks_openapi_run(tmp_path: Path) -> None:
     payload = {
         "response": {
             "header": {"resultCode": "00", "resultMsg": "NORMAL"},
@@ -46,7 +46,7 @@ def test_debug_request_captures_and_masks_openapi_run(tmp_path: Path) -> None:
     )
     client = MoisClient("SECRET", session=session)
 
-    debug_run = client.debug_request("hospitals", params={"api_key": "ANOTHER_SECRET"})
+    debug_run = (await client.debug_request("hospitals", params={"api_key": "ANOTHER_SECRET"}))
 
     assert debug_run.error is None
     assert debug_run.processed == [{"MNG_NO": "A1"}]

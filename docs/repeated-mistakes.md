@@ -74,10 +74,10 @@
 ## 외부 지오코더 통합
 
 - 주소 정규화·정/역 지오코딩을 `mois` 안에 재구현하지 않습니다. `kor-travel-geo`(구
-  `python-kraddr-geo`, ADR-002)에서 가져오고 `validate_address_geocoding_probe[_async]`로 비교만
+  `python-kraddr-geo`, ADR-002)에서 가져오고 `validate_address_geocoding_probe`로 비교만
   합니다.
-- `kor-travel-geo`는 async-only입니다. 동기 helper에 코루틴이 들어오면 `TypeError`로 거부됩니다.
-  async 클라이언트에는 항상 `validate_address_geocoding_probe_async`를 씁니다(ADR-004).
+- `kor-travel-geo`는 async-only입니다. 검증 helper는 비동기 지오코더만 받습니다.
+  async 클라이언트에는 항상 `validate_address_geocoding_probe`를 씁니다(ADR-004).
 - 검증 helper는 좌표계를 명시적으로 받습니다. `kor-travel-geo` v2는 EPSG:4326(lon/lat) 기본(v1
   REST API는 vworld 호환 EPSG:5179), `mois` 원본은 EPSG:5174입니다. 실제로 쓰는 API 버전에 맞는
   `geocoder_crs`를 빼먹지 않습니다.

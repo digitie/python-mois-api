@@ -7,27 +7,41 @@ localdata 파일 다운로드는 인허가정보 195개 업종을 대상으로 �
 ## 기본 사용
 
 ```python
+import asyncio
 from mois import LocalDataFileClient
 
-with LocalDataFileClient() as files:
-    records = files.load("hospitals")
 
-first = records[0]
-print(first.business_name)
-print(first.license_date)
-print(first.coordinates.lat, first.coordinates.lon)
-print(first.coordinates.wgs84_point.as_tuple())  # (lat, lon)
+async def main() -> None:
+    async with LocalDataFileClient() as files:
+        records = (await files.load("hospitals"))
+
+    first = records[0]
+    print(first.business_name)
+    print(first.license_date)
+    print(first.coordinates.lat, first.coordinates.lon)
+    print(first.coordinates.wgs84_point.as_tuple())  # (lat, lon)
+
+
+asyncio.run(main())
 ```
 
 대용량 업종은 전체 목록을 메모리에 올리는 `load()`보다 스트리밍 API를 사용합니다.
 
 ```python
-with LocalDataFileClient() as files:
-    for record in files.iter_hospitals():
-        print(record.management_number, record.business_name)
+import asyncio
+from mois import LocalDataFileClient
+
+
+async def main() -> None:
+    async with LocalDataFileClient() as files:
+        async for record in files.iter_hospitals():
+            print(record.management_number, record.business_name)
+
+
+asyncio.run(main())
 ```
 
-asyncio 환경에서는 `aio()`를 사용합니다.
+클라이언트는 비동기 전용이며 async with로 사용합니다.
 
 ```python
 import asyncio
@@ -36,7 +50,7 @@ from mois import LocalDataFileClient
 
 
 async def main():
-    async with LocalDataFileClient.aio() as files:
+    async with LocalDataFileClient() as files:
         records = await files.load("hospitals")
         print(records[0].business_name)
 
@@ -45,11 +59,9 @@ async def main():
 
         async for record in files.iter_hospitals():
             print(record.management_number, record.business_name)
-            break
 
         async for record in files.iter_file("artifacts/localdata/hospitals_info.bin", slug="hospitals"):
             print(record.management_number, record.business_name)
-            break
 
 
 asyncio.run(main())
@@ -60,8 +72,16 @@ asyncio.run(main())
 지역별 파일은 localdata의 `orgCode`를 그대로 전달합니다. 예: 서울종로구 `3000000`.
 
 ```python
-with LocalDataFileClient() as files:
-    records = files.load("hospitals", org_code="3000000")
+import asyncio
+from mois import LocalDataFileClient
+
+
+async def main() -> None:
+    async with LocalDataFileClient() as files:
+        records = (await files.load("hospitals", org_code="3000000"))
+
+
+asyncio.run(main())
 ```
 
 ## 변환 규칙

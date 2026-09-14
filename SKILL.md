@@ -65,3 +65,9 @@
 - [ ] 의사결정이 있었다면 `docs/decisions.md`에 ADR 추가
 - [ ] 사용자 가시 변경이면 `CHANGELOG.md` 갱신
 - [ ] OpenAPI 목록 변경은 `src/mois/catalog.py`, `docs/api-list.md`, `docs/response-fields.md` 함께 갱신
+
+## 비동기 전용 호출과 TPS
+
+공개 네트워크 클라이언트는 native async 하나로 통합했다.
+`max_rps` 또는 공유 `AsyncTokenBucket`을 `rate_limiter=`에 전달한다.
+기존 동기/비동기 병행 지침은 ADR-013로 대체했다. [호출·TPS·소유권·DB 예제](docs/async-tps.md)를 따른다.

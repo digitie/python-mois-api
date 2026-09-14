@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -66,7 +65,7 @@ CSV_TEXT = (
 )
 
 
-def test_async_mois_client_uses_aio_context_and_dynamic_helpers() -> None:
+async def test_async_mois_client_uses_aio_context_and_dynamic_helpers() -> None:
     payload = {
         "response": {
             "header": {"resultCode": "00", "resultMsg": "NORMAL"},
@@ -83,7 +82,7 @@ def test_async_mois_client_uses_aio_context_and_dynamic_helpers() -> None:
     )
 
     async def run() -> None:
-        async with MoisClient.aio("KEY", transport=transport) as client:
+        async with MoisClient("KEY", transport=transport) as client:
             response = await client.request(
                 "hospitals",
                 conditions={"DAT_UPDT_PNT": ("GTE", "20260301000000")},
@@ -91,9 +90,9 @@ def test_async_mois_client_uses_aio_context_and_dynamic_helpers() -> None:
             assert response.total_count == 1
             assert await client.get_updated_hospitals("20260505") == [{"MNG_NO": "A1"}]
 
-    asyncio.run(run())
+    (await run())
 
-    assert transport.closed is True
+    assert transport.closed is False
     url, kwargs = transport.calls[0]
     assert url == "http://apis.data.go.kr/1741000/hospitals/info"
     assert kwargs["params"]["serviceKey"] == "KEY"
@@ -102,11 +101,11 @@ def test_async_mois_client_uses_aio_context_and_dynamic_helpers() -> None:
     assert updated_kwargs["params"]["cond[DAT_UPDT_PNT::GTE]"] == "20260505000000"
 
 
-def test_async_file_client_downloads_then_loads_with_browser_flow() -> None:
+async def test_async_file_client_downloads_then_loads_with_browser_flow() -> None:
     transport = FakeAsyncFileTransport()
 
     async def run() -> None:
-        async with LocalDataFileClient.aio(transport=transport) as files:
+        async with LocalDataFileClient(transport=transport) as files:
             records = await files.load_hospitals()
             assert records[0].management_number == "PHMA1"
 
@@ -115,21 +114,21 @@ def test_async_file_client_downloads_then_loads_with_browser_flow() -> None:
                 streamed.append(record)
             assert streamed[0].business_name == "포레스트병원"
 
-    asyncio.run(run())
+    (await run())
 
-    assert transport.closed is True
+    assert transport.closed is False
     assert transport.urls[0].endswith("/file/hospitals/info")
     assert transport.urls[1].endswith("/file/validate/download-count")
     assert transport.urls[2].endswith("/file/download/hospitals/info")
     assert transport.kwargs[2]["stream"] is True
 
 
-def test_async_file_client_loads_existing_local_file(tmp_path: Any) -> None:
+async def test_async_file_client_loads_existing_local_file(tmp_path: Any) -> None:
     path = tmp_path / "hospitals.csv"
     path.write_bytes(CSV_TEXT.encode("cp949"))
 
     async def run() -> None:
-        async with LocalDataFileClient.aio(transport=FakeAsyncFileTransport()) as files:
+        async with LocalDataFileClient(transport=FakeAsyncFileTransport()) as files:
             records = await files.load_file(path, slug="hospitals")
             assert records[0].management_number == "PHMA1"
 
@@ -138,4 +137,4 @@ def test_async_file_client_loads_existing_local_file(tmp_path: Any) -> None:
                 streamed.append(record)
             assert streamed[0].business_name == "포레스트병원"
 
-    asyncio.run(run())
+    (await run())

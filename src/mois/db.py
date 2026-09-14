@@ -8,6 +8,7 @@ import json
 import os
 import uuid
 from collections.abc import Iterable, Iterator, Mapping, Sequence
+from contextlib import aclosing
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
@@ -34,6 +35,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Connection, Engine
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from .convert import field_for_header
@@ -683,8 +685,8 @@ def build_place_models(
     return master, detail
 
 
-def sync_localdata_source_db(
-    session: Session,
+async def sync_localdata_source_db(
+    session: AsyncSession,
     client: Any,
     *,
     service_slugs: Iterable[str],
@@ -716,29 +718,29 @@ def sync_localdata_source_db(
     for slug in slugs:
         slug_scanned = 0
         slug_upserted = 0
-        iterator = client.iter(slug, org_code=org_code, encoding=encoding)
-        for batch in _batched(iterator, batch_size):
-            slug_scanned += len(batch)
-            scanned_count += len(batch)
-            for record in batch:
-                if record.is_open is True:
-                    open_count += 1
-                elif record.is_open is False:
-                    closed_count += 1
-                else:
-                    unknown_status_count += 1
-            written_ids = bulk_upsert_places(session, batch)
-            slug_upserted += len(written_ids)
-            upserted_count += len(written_ids)
-        _upsert_sync_log(
-            session,
+        async with aclosing(client.iter(slug, org_code=org_code, encoding=encoding)) as iterator:
+            async for batch in _async_batches(iterator, batch_size):
+                slug_scanned += len(batch)
+                scanned_count += len(batch)
+                for record in batch:
+                    if record.is_open is True:
+                        open_count += 1
+                    elif record.is_open is False:
+                        closed_count += 1
+                    else:
+                        unknown_status_count += 1
+                written_ids = await session.run_sync(bulk_upsert_places, batch)
+                slug_upserted += len(written_ids)
+                upserted_count += len(written_ids)
+        await session.run_sync(
+            _upsert_sync_log,
             service_slug=slug,
             sync_kind=sync_kind,
             fetched_count=slug_scanned,
             status="success",
         )
         if commit:
-            session.commit()
+            await session.commit()
 
     return LocalDataSourceDbSyncResult(
         service_slugs=slugs,
@@ -1536,3 +1538,15 @@ def _record_management_key(record: LocalDataRecord) -> str:
     serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
     digest = hashlib.sha256(serialized.encode("utf-8")).hexdigest()[:32]
     return f"missing-mng-no-{digest}"
+
+
+async def _async_batches(records: Any, size: int) -> Any:
+    """비동기 CSV 행을 제한된 크기의 배치로 나눕니다."""
+    batch = []
+    async for record in records:
+        batch.append(record)
+        if len(batch) >= size:
+            yield batch
+            batch = []
+    if batch:
+        yield batch

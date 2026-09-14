@@ -17,20 +17,26 @@
 - `numOfRows`는 최대 100이며, 전체 동기화는 `totalCount`와 `pageNo` 기반으로 페이지를 넘깁니다.
 
 ```python
+import asyncio
 from mois import MoisClient, list_incremental_openapi_endpoints
 
-with MoisClient.from_env() as client:
-    changed = client.get_updated_hospitals("20260505000000")
-    source_changed = client.get_updated_hospitals(
-        "20260505000000",
-        source_modified=True,
-    )
 
-for api in list_incremental_openapi_endpoints():
-    print(api.service_slug, api.application_url, api.get_method)
+async def main() -> None:
+    async with MoisClient.from_env() as client:
+        changed = (await client.get_updated_hospitals("20260505000000"))
+        source_changed = (await client.get_updated_hospitals(
+            "20260505000000",
+            source_modified=True,
+        ))
+
+    for api in list_incremental_openapi_endpoints():
+        print(api.service_slug, api.application_url, api.get_method)
+
+
+asyncio.run(main())
 ```
 
-비동기 배치에서는 `MoisClient.aio()`를 사용합니다.
+비동기 배치에서는 `MoisClient()`를 사용합니다.
 
 ```python
 import asyncio
@@ -39,7 +45,7 @@ from mois import MoisClient
 
 
 async def main():
-    async with MoisClient.aio() as client:
+    async with MoisClient() as client:
         changed = await client.get_updated_hospitals("20260505000000")
         print(len(changed))
 

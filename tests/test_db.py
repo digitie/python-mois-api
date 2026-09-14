@@ -6,10 +6,12 @@ from uuid import UUID
 import pytest
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.dialects import sqlite
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.schema import CreateTable
 
 from mois import (
+    Base,
     BatchSyncLog,
     LocalDataSourceDbSyncResult,
     PlaceMaster,
@@ -210,7 +212,7 @@ class FakeLocalDataFileClient:
         self.rows = rows
         self.calls: list[tuple[str, str | None, str | None]] = []
 
-    def iter(
+    async def iter(
         self,
         slug: str,
         *,
@@ -218,10 +220,11 @@ class FakeLocalDataFileClient:
         encoding: str | None = None,
     ):
         self.calls.append((slug, org_code, encoding))
-        yield from load_records_from_text(self.rows[slug], slug=slug)
+        for row in load_records_from_text(self.rows[slug], slug=slug):
+            yield row
 
 
-def test_sync_localdata_source_db_keeps_open_and_closed_rows_queryable() -> None:
+async def test_sync_localdata_source_db_keeps_open_and_closed_rows_queryable() -> None:
     text = (
         "개방자치단체코드,관리번호,인허가일자,영업상태코드,영업상태명,사업장명,"
         "도로명전체주소,좌표정보(X),좌표정보(Y)\n"
@@ -231,11 +234,12 @@ def test_sync_localdata_source_db_keeps_open_and_closed_rows_queryable() -> None
         "서울특별시 종로구 세종대로 1,199642.716240024,452606.614384676\n"
     )
     client = FakeLocalDataFileClient({"hospitals": text})
-    engine = create_engine("sqlite+pysqlite:///:memory:")
-    create_sqlite_schema(engine, load_spatialite=False)
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
-    with Session(engine) as session:
-        result = sync_localdata_source_db(
+    async with AsyncSession(engine) as session:
+        result = await sync_localdata_source_db(
             session,
             client,
             service_slugs=("hospitals",),
@@ -250,9 +254,13 @@ def test_sync_localdata_source_db_keeps_open_and_closed_rows_queryable() -> None
         assert result.closed_count == 1
         assert client.calls == [("hospitals", None, None)]
 
-        open_places = list(iter_open_place_records(session, service_slugs=("hospitals",)))
-        closed_places = list(iter_closed_place_records(session, service_slugs=("hospitals",)))
-        sync_log = session.get(
+        open_places = await session.run_sync(
+            lambda db: list(iter_open_place_records(db, service_slugs=("hospitals",)))
+        )
+        closed_places = await session.run_sync(
+            lambda db: list(iter_closed_place_records(db, service_slugs=("hospitals",)))
+        )
+        sync_log = await session.get(
             BatchSyncLog,
             {"service_slug": "hospitals", "sync_kind": "localdata_full"},
         )
@@ -265,3 +273,5 @@ def test_sync_localdata_source_db_keeps_open_and_closed_rows_queryable() -> None
     assert open_places[0].is_open is True
     assert closed_places[0].mng_no == "PHMA2"
     assert closed_places[0].is_open is False
+
+    await engine.dispose()

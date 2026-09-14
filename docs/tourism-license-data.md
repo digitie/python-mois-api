@@ -118,28 +118,40 @@
 ## 사용 예
 
 ```python
+import asyncio
 from mois import LocalDataFileClient
 
-with LocalDataFileClient() as files:
-    for record in files.iter_tourist_accommodations():
-        point = record.coordinates.wgs84_point if record.coordinates else None
-        print(record.business_name, point)
+
+async def main() -> None:
+    async with LocalDataFileClient() as files:
+        async for record in files.iter_tourist_accommodations():
+            point = record.coordinates.wgs84_point if record.coordinates else None
+            print(record.business_name, point)
+
+
+asyncio.run(main())
 ```
 
 여러 업종을 한 DB에 넣을 때는 `service_slug`를 함께 저장해 업종을 구분합니다.
 
 ```python
+import asyncio
 from mois import LocalDataFileClient
 
-TOURISM_SLUGS = [
-    "tourist_accommodations",
-    "lodgings",
-    "tourist_restaurants",
-    "pharmacies",
-]
 
-with LocalDataFileClient() as files:
-    for slug in TOURISM_SLUGS:
-        for record in files.iter(slug):
-            print(slug, record.business_name)
+async def main() -> None:
+    TOURISM_SLUGS = [
+        "tourist_accommodations",
+        "lodgings",
+        "tourist_restaurants",
+        "pharmacies",
+    ]
+
+    async with LocalDataFileClient() as files:
+        for slug in TOURISM_SLUGS:
+            async for record in files.iter(slug):
+                print(slug, record.business_name)
+
+
+asyncio.run(main())
 ```

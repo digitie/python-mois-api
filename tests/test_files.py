@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import zipfile
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
@@ -50,8 +51,7 @@ def test_load_records_from_text_converts_common_python_types() -> None:
 
 def test_local_data_record_detects_closed_status() -> None:
     text = (
-        "관리번호,인허가일자,영업상태코드,영업상태명,사업장명\n"
-        "PHMA2,2020-01-01,03,폐업,닫은병원\n"
+        "관리번호,인허가일자,영업상태코드,영업상태명,사업장명\nPHMA2,2020-01-01,03,폐업,닫은병원\n"
     )
     record = load_records_from_text(text, slug="hospitals")[0]
     assert record.is_open is False
@@ -80,8 +80,9 @@ class FakeResponse:
     headers: dict[str, str] | None = None
     chunks: list[bytes] | None = None
 
-    def iter_content(self, chunk_size: int = 1024) -> list[bytes]:
-        return self.chunks or [self.content]
+    async def aiter_bytes(self, chunk_size: int = 1024) -> AsyncIterator[bytes]:
+        for chunk in self.chunks or [self.content]:
+            yield chunk
 
 
 class FakeSession:
@@ -89,7 +90,7 @@ class FakeSession:
         self.urls: list[str] = []
         self.kwargs: list[dict[str, object]] = []
 
-    def get(self, url: str, **kwargs: object) -> FakeResponse:
+    async def get(self, url: str, **kwargs: object) -> FakeResponse:
         self.urls.append(url)
         self.kwargs.append(kwargs)
         if url.endswith("/file/download/hospitals/info"):
@@ -99,10 +100,10 @@ class FakeSession:
         return FakeResponse()
 
 
-def test_file_client_downloads_then_loads_with_browser_flow() -> None:
+async def test_file_client_downloads_then_loads_with_browser_flow() -> None:
     session = FakeSession()
     client = LocalDataFileClient(session=session)
-    records = client.load("hospitals")
+    records = await client.load("hospitals")
     assert records[0].management_number == "PHMA1"
     assert session.urls[0].endswith("/file/hospitals/info")
     assert session.urls[1].endswith("/file/validate/download-count")
@@ -110,19 +111,19 @@ def test_file_client_downloads_then_loads_with_browser_flow() -> None:
     assert session.kwargs[2]["stream"] is True
 
 
-def test_file_client_download_writes_path(tmp_path: Path) -> None:
+async def test_file_client_download_writes_path(tmp_path: Path) -> None:
     session = FakeSession()
     client = LocalDataFileClient(session=session)
-    output = client.download_hospitals(tmp_path / "hospitals.csv")
+    output = await client.download_hospitals(tmp_path / "hospitals.csv")
     assert output.read_bytes().startswith("개방자치단체코드".encode("cp949"))
 
 
-def test_file_client_iter_dynamic_method_streams_records() -> None:
+async def test_file_client_iter_dynamic_method_streams_records() -> None:
     session = FakeSession()
     client = LocalDataFileClient(session=session)
     records = client.iter_hospitals()
-    assert next(records).management_number == "PHMA1"
-    assert list(records) == []
+    assert (await anext(records)).management_number == "PHMA1"
+    assert [row async for row in records] == []
 
 
 def test_iter_records_from_binary_reads_zip_stream() -> None:

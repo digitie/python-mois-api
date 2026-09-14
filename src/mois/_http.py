@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
+import logging
+import math
 import random
-import threading
-import time
-from dataclasses import dataclass, field
+import re
 from typing import Any, Protocol
 
 import httpx
 
+from ._httpx import send_after_token
+from ._ratelimit import AsyncTokenBucket
 from .exceptions import MoisRequestError, MoisServerError
 
 DEFAULT_USER_AGENT = "python-mois-api/0.1 (+https://github.com/digitie/python-mois-api)"
@@ -19,12 +22,18 @@ MAX_RETRY_DELAY = 8.0
 HTTP_CLIENT_ERROR = httpx.HTTPError
 
 
-class SyncTransport(Protocol):
-    """동기 클라이언트가 사용하는 최소 HTTP transport 프로토콜."""
+class _KeyLogFilter(logging.Filter):
+    """HTTPX의 요청 URL 로그에서 서비스키 쿼리를 제거합니다."""
 
-    def get(self, url: str, **kwargs: Any) -> Any: ...
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.msg = re.sub(
+            r"(?i)([?&]service_?key=)[^&\s\"']+", r"\1<REDACTED>", record.getMessage()
+        )
+        record.args = ()
+        return True
 
-    def close(self) -> None: ...
+
+logging.getLogger("httpx").addFilter(_KeyLogFilter())
 
 
 class AsyncTransport(Protocol):
@@ -33,228 +42,6 @@ class AsyncTransport(Protocol):
     async def get(self, url: str, **kwargs: Any) -> Any: ...
 
     async def aclose(self) -> None: ...
-
-
-@dataclass(slots=True)
-class SyncTokenBucket:
-    """동기 호출용 token bucket rate limiter."""
-
-    max_rps: float = 5.0
-    capacity: float | None = None
-    _tokens: float = field(init=False)
-    _updated_at: float = field(init=False)
-    _lock: threading.Lock = field(default_factory=threading.Lock, init=False)
-
-    def __post_init__(self) -> None:
-        if self.max_rps <= 0:
-            raise ValueError("max_rps must be greater than 0")
-        self.capacity = self.capacity or self.max_rps
-        self._tokens = self.capacity
-        self._updated_at = time.monotonic()
-
-    def acquire(self) -> None:
-        while True:
-            with self._lock:
-                self._refill()
-                if self._tokens >= 1:
-                    self._tokens -= 1
-                    return
-                wait_for = (1 - self._tokens) / self.max_rps
-            time.sleep(wait_for)
-
-    def _refill(self) -> None:
-        now = time.monotonic()
-        elapsed = now - self._updated_at
-        self._updated_at = now
-        assert self.capacity is not None
-        self._tokens = min(self.capacity, self._tokens + elapsed * self.max_rps)
-
-
-@dataclass(slots=True)
-class AsyncTokenBucket:
-    """asyncio 호출용 token bucket rate limiter."""
-
-    max_rps: float = 5.0
-    capacity: float | None = None
-    _tokens: float = field(init=False)
-    _updated_at: float = field(init=False)
-    _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False)
-
-    def __post_init__(self) -> None:
-        if self.max_rps <= 0:
-            raise ValueError("max_rps must be greater than 0")
-        self.capacity = self.capacity or self.max_rps
-        self._tokens = self.capacity
-        self._updated_at = time.monotonic()
-
-    async def acquire(self) -> None:
-        while True:
-            async with self._lock:
-                self._refill()
-                if self._tokens >= 1:
-                    self._tokens -= 1
-                    return
-                wait_for = (1 - self._tokens) / self.max_rps
-            await asyncio.sleep(wait_for)
-
-    def _refill(self) -> None:
-        now = time.monotonic()
-        elapsed = now - self._updated_at
-        self._updated_at = now
-        assert self.capacity is not None
-        self._tokens = min(self.capacity, self._tokens + elapsed * self.max_rps)
-
-
-class SyncHttpxTransport:
-    """httpx.Client 기반 동기 transport."""
-
-    def __init__(
-        self,
-        *,
-        timeout: float = 10.0,
-        retries: int = 2,
-        max_rps: float = 5.0,
-        client: httpx.Client | None = None,
-    ) -> None:
-        self.timeout = timeout
-        self.retries = max(0, retries)
-        self._bucket = SyncTokenBucket(max_rps=max_rps)
-        self._client = client or httpx.Client(
-            headers={"User-Agent": DEFAULT_USER_AGENT},
-            timeout=timeout,
-            follow_redirects=True,
-        )
-        self._owns_client = client is None
-
-    def get(self, url: str, **kwargs: Any) -> httpx.Response:
-        stream = bool(kwargs.pop("stream", False))
-        timeout = kwargs.pop("timeout", self.timeout)
-        attempts = self.retries + 1
-        last_error: httpx.HTTPError | None = None
-        for attempt in range(attempts):
-            self._bucket.acquire()
-            try:
-                response = self._send_get(url, stream=stream, timeout=timeout, **kwargs)
-            except httpx.HTTPError as exc:
-                last_error = exc
-                if attempt + 1 >= attempts:
-                    raise
-                time.sleep(_retry_delay(attempt))
-                continue
-            if response.status_code in RETRY_STATUS_CODES and attempt + 1 < attempts:
-                retry_after = _parse_retry_after(response)
-                if retry_after is not None and retry_after > MAX_RETRY_DELAY:
-                    return response
-                response.close()
-                time.sleep(_retry_delay(attempt, retry_after))
-                continue
-            return response
-        assert last_error is not None
-        raise last_error
-
-    def close(self) -> None:
-        if self._owns_client:
-            self._client.close()
-
-    def _send_get(
-        self,
-        url: str,
-        *,
-        stream: bool,
-        timeout: float,
-        **kwargs: Any,
-    ) -> httpx.Response:
-        if not stream:
-            return self._client.get(url, timeout=timeout, **kwargs)
-        request = self._client.build_request("GET", url, timeout=timeout, **kwargs)
-        return self._client.send(request, stream=True, follow_redirects=True)
-
-
-class AsyncHttpxTransport:
-    """httpx.AsyncClient 기반 asyncio transport."""
-
-    def __init__(
-        self,
-        *,
-        timeout: float = 10.0,
-        retries: int = 2,
-        max_rps: float = 5.0,
-        client: httpx.AsyncClient | None = None,
-    ) -> None:
-        self.timeout = timeout
-        self.retries = max(0, retries)
-        self._bucket = AsyncTokenBucket(max_rps=max_rps)
-        self._client = client or httpx.AsyncClient(
-            headers={"User-Agent": DEFAULT_USER_AGENT},
-            timeout=timeout,
-            follow_redirects=True,
-        )
-        self._owns_client = client is None
-
-    async def get(self, url: str, **kwargs: Any) -> httpx.Response:
-        stream = bool(kwargs.pop("stream", False))
-        timeout = kwargs.pop("timeout", self.timeout)
-        attempts = self.retries + 1
-        last_error: httpx.HTTPError | None = None
-        for attempt in range(attempts):
-            await self._bucket.acquire()
-            try:
-                response = await self._send_get(url, stream=stream, timeout=timeout, **kwargs)
-            except httpx.HTTPError as exc:
-                last_error = exc
-                if attempt + 1 >= attempts:
-                    raise
-                await asyncio.sleep(_retry_delay(attempt))
-                continue
-            if response.status_code in RETRY_STATUS_CODES and attempt + 1 < attempts:
-                retry_after = _parse_retry_after(response)
-                if retry_after is not None and retry_after > MAX_RETRY_DELAY:
-                    return response
-                await response.aclose()
-                await asyncio.sleep(_retry_delay(attempt, retry_after))
-                continue
-            return response
-        assert last_error is not None
-        raise last_error
-
-    async def aclose(self) -> None:
-        if self._owns_client:
-            await self._client.aclose()
-
-    async def _send_get(
-        self,
-        url: str,
-        *,
-        stream: bool,
-        timeout: float,
-        **kwargs: Any,
-    ) -> httpx.Response:
-        if not stream:
-            return await self._client.get(url, timeout=timeout, **kwargs)
-        request = self._client.build_request("GET", url, timeout=timeout, **kwargs)
-        return await self._client.send(request, stream=True, follow_redirects=True)
-
-
-def build_session(
-    retries: int = 2,
-    *,
-    timeout: float = 10.0,
-    max_rps: float = 5.0,
-) -> SyncHttpxTransport:
-    """httpx 기반 동기 transport를 만듭니다."""
-
-    return SyncHttpxTransport(timeout=timeout, retries=retries, max_rps=max_rps)
-
-
-def build_async_session(
-    retries: int = 2,
-    *,
-    timeout: float = 10.0,
-    max_rps: float = 5.0,
-) -> AsyncHttpxTransport:
-    """httpx 기반 asyncio transport를 만듭니다."""
-
-    return AsyncHttpxTransport(timeout=timeout, retries=retries, max_rps=max_rps)
 
 
 def raise_for_http_error(response: Any, context: str) -> None:
@@ -283,4 +70,116 @@ def _parse_retry_after(response: httpx.Response) -> float | None:
         seconds = float(value)
     except ValueError:
         return None
-    return seconds if seconds >= 0 else None
+    return seconds if math.isfinite(seconds) and seconds >= 0 else None
+
+
+class AsyncHttpxTransport:
+    """송신·재시도·리다이렉트가 같은 버킷을 사용하는 비동기 transport."""
+
+    def __init__(
+        self,
+        *,
+        timeout: float = 10.0,
+        retries: int = 2,
+        max_rps: float = 5.0,
+        rate_limiter: AsyncTokenBucket | None = None,
+        client: Any | None = None,
+    ) -> None:
+        if client is not None and not inspect.iscoroutinefunction(client.get):
+            raise TypeError("session.get must be async")
+        self.timeout = timeout
+        self.retries = max(0, retries)
+        self.rate_limiter = rate_limiter if rate_limiter is not None else AsyncTokenBucket(max_rps)
+        self._client = client
+        self._owns_client = client is None
+        self.closed = False
+
+    def _ready(self) -> Any:
+        if self.closed:
+            raise RuntimeError("transport is closed")
+        if self._client is None:
+            self._client = httpx.AsyncClient(
+                headers={"User-Agent": DEFAULT_USER_AGENT},
+                timeout=self.timeout,
+                follow_redirects=True,
+            )
+        if isinstance(self._client, httpx.AsyncClient):
+            auth = self._client.auth
+            if auth is not None and type(auth) not in {httpx.Auth, httpx.BasicAuth}:
+                raise TypeError("Digest/custom Auth may send unmetered requests")
+        return self._client
+
+    async def get(self, url: str, **kwargs: Any) -> Any:
+        stream = bool(kwargs.pop("stream", False))
+        timeout = kwargs.pop("timeout", self.timeout)
+        follow = kwargs.pop("follow_redirects", None)
+        self._ready()
+        for attempt in range(self.retries + 1):
+            await self.rate_limiter.acquire()
+            client = self._ready()
+            try:
+                if isinstance(client, httpx.AsyncClient):
+                    request = client.build_request("GET", url, timeout=timeout, **kwargs)
+                    response = await send_after_token(
+                        client, request, self.rate_limiter, stream=stream, follow_redirects=follow
+                    )
+                else:
+                    options = dict(kwargs)
+                    if follow is not None:
+                        options["follow_redirects"] = follow
+                    response = await client.get(url, stream=stream, timeout=timeout, **options)
+            except httpx.TooManyRedirects:
+                raise
+            except httpx.HTTPError:
+                if attempt >= self.retries:
+                    raise
+                await asyncio.sleep(_retry_delay(attempt))
+                continue
+            if response.status_code in RETRY_STATUS_CODES and attempt < self.retries:
+                retry_after = _parse_retry_after(response)
+                if retry_after is not None and retry_after > MAX_RETRY_DELAY:
+                    return response
+                await close_response(response)
+                await asyncio.sleep(_retry_delay(attempt, retry_after))
+                continue
+            return response
+        raise AssertionError("unreachable")
+
+    async def aclose(self) -> None:
+        if not self.closed:
+            self.closed = True
+            if self._owns_client and self._client is not None:
+                await self._client.aclose()
+
+
+async def close_response(response: Any) -> None:
+    """소비한 비동기 응답을 닫습니다."""
+    close = getattr(response, "aclose", None)
+    if callable(close):
+        await close()
+
+
+def resolve_transport(
+    transport: Any,
+    session: Any,
+    *,
+    retries: int,
+    timeout: float,
+    max_rps: float,
+    rate_limiter: AsyncTokenBucket | None,
+) -> AsyncHttpxTransport:
+    """주입한 세션은 호출자가 소유하며 transport는 송신 예산을 유지합니다."""
+    if transport is not None and session is not None:
+        raise ValueError("pass only one of transport or session")
+    provided = transport if transport is not None else session
+    if isinstance(provided, AsyncHttpxTransport):
+        if rate_limiter is not None and rate_limiter is not provided.rate_limiter:
+            raise ValueError("configure the injected transport with the same rate_limiter")
+        return provided
+    return AsyncHttpxTransport(
+        timeout=timeout,
+        retries=retries,
+        max_rps=max_rps,
+        rate_limiter=rate_limiter,
+        client=provided,
+    )

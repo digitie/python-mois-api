@@ -44,14 +44,20 @@ python -m mois_debug_ui.backend.load_sqlite --file artifacts/localdata/hospitals
 asyncio 흐름에서는 같은 로컬 파일 적재를 `aload_local_file_to_sqlite()`로 실행할 수 있습니다.
 
 ```python
+import asyncio
 from mois_debug_ui.backend.load_sqlite import aload_local_file_to_sqlite
 
-loaded = await aload_local_file_to_sqlite(
-    database_path="artifacts/mois.sqlite",
-    file_path="artifacts/localdata/hospitals_info.bin",
-    slug="hospitals",
-    replace_slug=True,
-)
+
+async def main() -> None:
+    loaded = await aload_local_file_to_sqlite(
+        database_path="artifacts/mois.sqlite",
+        file_path="artifacts/localdata/hospitals_info.bin",
+        slug="hospitals",
+        replace_slug=True,
+    )
+
+
+asyncio.run(main())
 ```
 
 전체 195개 인허가 파일을 모두 저장하고 적재할 때는 운영 스크립트를 사용합니다.

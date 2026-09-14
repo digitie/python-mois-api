@@ -1,20 +1,16 @@
 from __future__ import annotations
 
-import asyncio
 from typing import Any
-
-import pytest
 
 from mois import (
     AddressGeocodingProbe,
     GeocodingCandidate,
     validate_address_geocoding_probe,
-    validate_address_geocoding_probe_async,
 )
 
 
 class FakeGeocoder:
-    def get_coord(self, request: dict[str, Any]) -> list[GeocodingCandidate]:
+    async def get_coord(self, request: dict[str, Any]) -> list[GeocodingCandidate]:
         assert request["crs"] == "EPSG:5179"
         return [
             GeocodingCandidate(
@@ -25,7 +21,7 @@ class FakeGeocoder:
             )
         ]
 
-    def nearest_road_address_xy(
+    async def nearest_road_address_xy(
         self,
         *,
         x: float,
@@ -43,8 +39,8 @@ class FakeGeocoder:
         )
 
 
-def test_validate_address_geocoding_probe_compares_address_and_distance() -> None:
-    result = validate_address_geocoding_probe(
+async def test_validate_address_geocoding_probe_compares_address_and_distance() -> None:
+    result = (await validate_address_geocoding_probe(
         AddressGeocodingProbe(
             source_id="mois-1",
             address="Seoul Jongno-gu Jahamun-ro 96 (Pyeongan)",
@@ -54,7 +50,7 @@ def test_validate_address_geocoding_probe_compares_address_and_distance() -> Non
             distance_tolerance_m=2,
         ),
         FakeGeocoder(),
-    )
+    ))
 
     assert result.source_id == "mois-1"
     assert result.address_match is True
@@ -108,9 +104,9 @@ class AsyncFakeGeocoder:
         )
 
 
-def test_validate_async_supports_kor_travel_geo_style_client() -> None:
+async def test_validate_async_supports_kor_travel_geo_style_client() -> None:
     async def run() -> None:
-        result = await validate_address_geocoding_probe_async(
+        result = await validate_address_geocoding_probe(
             AddressGeocodingProbe(
                 source_id="mois-2",
                 address="서울특별시 종로구 자하문로 96 (평안)",
@@ -124,23 +120,13 @@ def test_validate_async_supports_kor_travel_geo_style_client() -> None:
         assert result.within_tolerance is True
         assert result.address_match is True
 
-    asyncio.run(run())
+    (await run())
 
 
-def test_validate_sync_rejects_async_geocoder() -> None:
-    geocoder = AsyncFakeGeocoder()
-    with (
-        pytest.warns(RuntimeWarning, match="coroutine"),
-        pytest.raises(TypeError, match="validate_address_geocoding_probe_async"),
-    ):
-        validate_address_geocoding_probe(
-            AddressGeocodingProbe(address="서울특별시 종로구 자하문로 96"),
-            geocoder,
-        )
 
 
 class KoreanGeocoder:
-    def get_coord(self, request: dict[str, Any]) -> list[GeocodingCandidate]:
+    async def get_coord(self, request: dict[str, Any]) -> list[GeocodingCandidate]:
         return [
             GeocodingCandidate(
                 x=953243.1,
@@ -150,7 +136,7 @@ class KoreanGeocoder:
             )
         ]
 
-    def nearest_road_address_xy(
+    async def nearest_road_address_xy(
         self,
         *,
         x: float,
@@ -167,8 +153,8 @@ class KoreanGeocoder:
         )
 
 
-def test_address_match_ignores_whitespace_and_punctuation() -> None:
-    result = validate_address_geocoding_probe(
+async def test_address_match_ignores_whitespace_and_punctuation() -> None:
+    result = (await validate_address_geocoding_probe(
         AddressGeocodingProbe(
             address="서울특별시 종로구 자하문로 96 (평안)",
             x=953243.1,
@@ -177,6 +163,6 @@ def test_address_match_ignores_whitespace_and_punctuation() -> None:
             distance_tolerance_m=2,
         ),
         KoreanGeocoder(),
-    )
+    ))
 
     assert result.address_match is True

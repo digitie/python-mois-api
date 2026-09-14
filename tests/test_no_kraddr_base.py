@@ -87,10 +87,10 @@ class _DuckTypedPlaceCoordinate:
 
 
 class _FakeGeocoder:
-    def get_coord(self, request: dict[str, Any]) -> list[_DuckTypedPlaceCoordinate]:
+    async def get_coord(self, request: dict[str, Any]) -> list[_DuckTypedPlaceCoordinate]:
         return [_DuckTypedPlaceCoordinate()]
 
-    def nearest_road_address_xy(
+    async def nearest_road_address_xy(
         self,
         *,
         x: float,
@@ -107,11 +107,11 @@ def test_candidate_from_any_rejects_arbitrary_objects() -> None:
         _candidate_from_any(_DuckTypedPlaceCoordinate(), default_crs="EPSG:5179")
 
 
-def test_validate_helper_rejects_duck_typed_geocoder_results() -> None:
+async def test_validate_helper_rejects_duck_typed_geocoder_results() -> None:
     """검증 helper도 kraddr.base 모양 객체를 받지 않아야 한다."""
 
     with pytest.raises(TypeError, match="GeocodingCandidate"):
-        validate_address_geocoding_probe(
+        (await validate_address_geocoding_probe(
             AddressGeocodingProbe(
                 address="서울특별시 종로구 자하문로 96",
                 x=953243.1,
@@ -119,4 +119,4 @@ def test_validate_helper_rejects_duck_typed_geocoder_results() -> None:
                 crs="EPSG:5179",
             ),
             _FakeGeocoder(),
-        )
+        ))

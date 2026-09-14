@@ -115,18 +115,26 @@ on mois_place_detail(json_extract(specific_data, '$.SERVICE_ONLY_FIELD'));
 ## 기본 사용
 
 ```python
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
+import asyncio
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from mois import Base, LocalDataFileClient, sync_localdata_source_db
 
-from mois import LocalDataFileClient, create_sqlite_schema, upsert_place
 
-engine = create_engine("sqlite:///artifacts/mois.sqlite")
-create_sqlite_schema(engine)
+async def main() -> None:
+    engine = create_async_engine("sqlite+aiosqlite:///mois.sqlite")
+    try:
+        async with engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+        async with AsyncSession(engine) as session, LocalDataFileClient() as files:
+            result = await sync_localdata_source_db(
+                session, files, service_slugs=("hospitals",), batch_size=1000,
+            )
+            print(result.scanned_count)
+    finally:
+        await engine.dispose()
 
-with LocalDataFileClient() as files, Session(engine) as session:
-    for record in files.iter_hospitals():
-        upsert_place(session, record)
-    session.commit()
+
+asyncio.run(main())
 ```
 
 대용량 업종은 `load_hospitals()`처럼 전체 목록을 만드는 방식보다 `iter_hospitals()`로 순회하며 배치 적재하는 방식을 권장합니다. 전체 파일 적재는 운영 스크립트를 사용합니다.
@@ -137,27 +145,26 @@ TripMate feature 적재처럼 주기적으로 source DB를 갱신해야 하는 �
 `iter_closed_place_records()`로 분리해 읽습니다.
 
 ```python
-from mois import (
-    LocalDataFileClient,
-    iter_closed_place_records,
-    iter_open_place_records,
-    sync_localdata_source_db,
-)
+import asyncio
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from mois import Base, LocalDataFileClient, sync_localdata_source_db
 
-with Session(engine) as session:
-    sync_localdata_source_db(
-        session,
-        LocalDataFileClient(),
-        service_slugs=("hospitals", "pharmacies", "tourist_accommodations"),
-        sync_kind="localdata_full",
-        batch_size=1000,
-        commit=True,
-    )
 
-    for place in iter_open_place_records(session, service_slugs=("hospitals",)):
-        print(place.mng_no, place.place_name)
+async def main() -> None:
+    engine = create_async_engine("sqlite+aiosqlite:///mois.sqlite")
+    try:
+        async with engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+        async with AsyncSession(engine) as session, LocalDataFileClient() as files:
+            result = await sync_localdata_source_db(
+                session, files, service_slugs=("hospitals",), batch_size=1000,
+            )
+            print(result.scanned_count)
+    finally:
+        await engine.dispose()
 
-    closed_places = list(iter_closed_place_records(session, service_slugs=("hospitals",)))
+
+asyncio.run(main())
 ```
 
 TripMate의 KRMOIS source DB full update 주기는 1주일 1회입니다. 이 source DB는 폐업/취소 row를

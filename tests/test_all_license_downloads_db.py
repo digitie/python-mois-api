@@ -29,7 +29,7 @@ class AllLicenseFakeSession:
     def __init__(self) -> None:
         self.urls: list[str] = []
 
-    def get(self, url: str, **kwargs: object) -> FakeResponse:
+    async def get(self, url: str, **kwargs: object) -> FakeResponse:
         self.urls.append(url)
         if "/file/download/" in url and url.endswith("/info"):
             slug = url.split("/file/download/", 1)[1].split("/info", 1)[0]
@@ -37,14 +37,14 @@ class AllLicenseFakeSession:
         return FakeResponse()
 
 
-def test_all_license_downloads_can_parse_and_prepare_db_models_without_network() -> None:
+async def test_all_license_downloads_can_parse_and_prepare_db_models_without_network() -> None:
     downloads = list_file_downloads()
     session = AllLicenseFakeSession()
-    client = LocalDataFileClient(session=session)
+    client = LocalDataFileClient(session=session, max_rps=100000)
 
     seen_slugs: set[str] = set()
     for download in downloads:
-        records = client.load(download.slug)
+        records = (await client.load(download.slug))
 
         assert len(records) == 1
         record = records[0]
@@ -84,7 +84,7 @@ def test_all_license_downloads_can_parse_and_prepare_db_models_without_network()
 
 
 @pytest.mark.live
-def test_live_all_license_downloads_and_optional_sqlite_load() -> None:
+async def test_live_all_license_downloads_and_optional_sqlite_load() -> None:
     if os.getenv("MOIS_RUN_ALL_DOWNLOAD_LIVE") != "1":
         pytest.skip("MOIS_RUN_ALL_DOWNLOAD_LIVE=1일 때만 195개 실제 다운로드를 실행합니다")
 
@@ -120,14 +120,14 @@ def test_live_all_license_downloads_and_optional_sqlite_load() -> None:
             record_count = 0
             if engine is not None:
                 with Session(engine) as session:
-                    for record in client.iter(download.slug):
+                    async for record in client.iter(download.slug):
                         record_count += 1
                         _assert_record_is_db_ready(record, download.slug)
                         upsert_place(session, record)
                         _write_record_progress(progress_path, message, record_count)
                     session.commit()
             else:
-                for record in client.iter(download.slug):
+                async for record in client.iter(download.slug):
                     record_count += 1
                     _assert_record_is_db_ready(record, download.slug)
                     _write_record_progress(progress_path, message, record_count)

@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+- MoisClient/LocalDataFileClient/RustfsClient와 외부 지오코딩 검증을 비동기 전용으로 통합. Async 접두사·aio 팩터리·동기 transport 제거.
+- 공통 AsyncTokenBucket의 max_rps/rate_limiter로 요청·재시도·리다이렉트·파일 다운로드·RustFS의 TPS를 제어.
+- sync_localdata_source_db는 AsyncSession을 받는 비동기 함수로 변경. 파일 취소/세션 소유권 및 디버그 키 마스킹 보강.
+
 - 카탈로그 기반 Streamlit 디버그 UI(`examples/streamlit_debug_ui.py`) 추가: `python-khoa-api` 템플릿에
   맞춰 Data source → Category → API 3단 계단식 선택, `required_params`/`optional_params` 메타데이터
   기반 파라미터 폼 자동 생성(업종별 하드코딩 분기 없음), 고정 6개 탭(Raw Response/Pydantic

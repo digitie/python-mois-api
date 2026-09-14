@@ -22,11 +22,11 @@ MOIS 인허가 원본 좌표·주소와 비교만 합니다.
 
 from __future__ import annotations
 
+import inspect
 import math
 import re
-from collections.abc import Awaitable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from functools import lru_cache
-from inspect import isawaitable
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -141,7 +141,7 @@ GeocodingCandidateLike = GeocodingCandidate | Mapping[str, Any]
 class AddressGeocoder(Protocol):
     """주소 검증에 필요한 최소 지오코더 계약.
 
-    동기/비동기 구현을 모두 허용하기 위해 반환 타입을 동기 값 또는 awaitable로 둡니다.
+    두 메서드는 모두 비동기로 구현합니다(ADR-013).
     `kor-travel-geo`처럼 async-only 구현은 코루틴을 반환하면 됩니다(ADR-004 참조).
     `kor-travel-geo`의 `AsyncAddressClient.geocode`/`.reverse`는 이 Protocol과 메서드 이름·반환
     타입이 다르므로(v2 `CandidateV2`), 직접 전달할 수 없고 이 계약에 맞춰 변환하는 얇은 adapter가
@@ -150,104 +150,25 @@ class AddressGeocoder(Protocol):
     (ADR-009).
     """
 
-    def get_coord(
+    async def get_coord(
         self,
         request: Mapping[str, Any],
-    ) -> (
-        Sequence[GeocodingCandidateLike]
-        | Awaitable[Sequence[GeocodingCandidateLike]]
-    ):
+    ) -> Sequence[GeocodingCandidateLike]:
         """주소 문자열을 좌표 후보로 변환합니다."""
         ...
 
-    def nearest_road_address_xy(
+    async def nearest_road_address_xy(
         self,
         *,
         x: float,
         y: float,
         max_distance_m: float | None = None,
-    ) -> GeocodingCandidateLike | Awaitable[GeocodingCandidateLike | None] | None:
+    ) -> GeocodingCandidateLike | None:
         """지정 좌표 주변의 가장 가까운 도로명주소 후보를 반환합니다."""
         ...
 
 
-def validate_address_geocoding_probe(
-    probe: AddressGeocodingProbe | Mapping[str, Any],
-    geocoder: AddressGeocoder,
-    *,
-    geocoder_crs: CoordinateCrs = "EPSG:5179",
-) -> AddressGeocodingValidationResult:
-    """MOIS 주소/좌표 한 행을 지오코더의 정방향/역방향 결과와 비교합니다.
-
-    지오코더 메서드가 코루틴을 반환하면 `TypeError`로 거부합니다. async 구현
-    (`kor-travel-geo`의 `AsyncAddressClient` 등)을 검증할 때는
-    `validate_address_geocoding_probe_async`를 사용합니다.
-    """
-
-    dto = _coerce_probe(probe)
-    input_x, input_y = _input_xy(dto, geocoder_crs)
-
-    geocode_candidate = None
-    geocode_distance = None
-    if dto.best_address:
-        matches = geocoder.get_coord(
-            {"query": dto.best_address, "limit": 1, "crs": geocoder_crs}
-        )
-        if isawaitable(matches):
-            raise TypeError(
-                "비동기 지오코더는 validate_address_geocoding_probe_async를 사용해야 합니다"
-            )
-        if matches:
-            geocode_candidate = _candidate_from_any(matches[0], default_crs=geocoder_crs)
-            if input_x is not None and input_y is not None:
-                geocode_distance = _distance(
-                    input_x,
-                    input_y,
-                    geocode_candidate.x,
-                    geocode_candidate.y,
-                )
-
-    reverse_candidate = None
-    reverse_distance = None
-    if input_x is not None and input_y is not None:
-        result = geocoder.nearest_road_address_xy(
-            x=input_x,
-            y=input_y,
-            max_distance_m=dto.distance_tolerance_m,
-        )
-        if isawaitable(result):
-            raise TypeError(
-                "비동기 지오코더는 validate_address_geocoding_probe_async를 사용해야 합니다"
-            )
-        if result is not None:
-            reverse_candidate = _candidate_from_any(
-                result,
-                default_crs=geocoder_crs,
-                fallback_x=input_x,
-                fallback_y=input_y,
-            )
-            reverse_distance = _distance(input_x, input_y, reverse_candidate.x, reverse_candidate.y)
-
-    distance_values = [
-        value for value in (geocode_distance, reverse_distance) if value is not None
-    ]
-    return AddressGeocodingValidationResult(
-        source_id=dto.source_id,
-        input_address=dto.best_address,
-        input_x=input_x,
-        input_y=input_y,
-        input_crs=dto.crs,
-        geocode_candidate=geocode_candidate,
-        reverse_candidate=reverse_candidate,
-        geocode_distance_m=geocode_distance,
-        reverse_distance_m=reverse_distance,
-        address_match=_addresses_match(dto.best_address, geocode_candidate, reverse_candidate),
-        within_tolerance=bool(distance_values)
-        and min(distance_values) <= dto.distance_tolerance_m,
-    )
-
-
-async def validate_address_geocoding_probe_async(
+async def validate_address_geocoding_probe(
     probe: AddressGeocodingProbe | Mapping[str, Any],
     geocoder: AddressGeocoder,
     *,
@@ -259,16 +180,19 @@ async def validate_address_geocoding_probe_async(
     그대로 사용할 수 있도록 코루틴 결과를 `await`합니다.
     """
 
+    if not all(
+        inspect.iscoroutinefunction(getattr(geocoder, name, None))
+        for name in ("get_coord", "nearest_road_address_xy")
+    ):
+        raise TypeError("geocoder methods must be async")
     dto = _coerce_probe(probe)
     input_x, input_y = _input_xy(dto, geocoder_crs)
 
     geocode_candidate = None
     geocode_distance = None
     if dto.best_address:
-        matches = await _maybe_await(
-            geocoder.get_coord(
-                {"query": dto.best_address, "limit": 1, "crs": geocoder_crs}
-            )
+        matches = await geocoder.get_coord(
+            {"query": dto.best_address, "limit": 1, "crs": geocoder_crs}
         )
         if matches:
             geocode_candidate = _candidate_from_any(matches[0], default_crs=geocoder_crs)
@@ -283,12 +207,10 @@ async def validate_address_geocoding_probe_async(
     reverse_candidate = None
     reverse_distance = None
     if input_x is not None and input_y is not None:
-        result = await _maybe_await(
-            geocoder.nearest_road_address_xy(
-                x=input_x,
-                y=input_y,
-                max_distance_m=dto.distance_tolerance_m,
-            )
+        result = await geocoder.nearest_road_address_xy(
+            x=input_x,
+            y=input_y,
+            max_distance_m=dto.distance_tolerance_m,
         )
         if result is not None:
             reverse_candidate = _candidate_from_any(
@@ -299,9 +221,7 @@ async def validate_address_geocoding_probe_async(
             )
             reverse_distance = _distance(input_x, input_y, reverse_candidate.x, reverse_candidate.y)
 
-    distance_values = [
-        value for value in (geocode_distance, reverse_distance) if value is not None
-    ]
+    distance_values = [value for value in (geocode_distance, reverse_distance) if value is not None]
     return AddressGeocodingValidationResult(
         source_id=dto.source_id,
         input_address=dto.best_address,
@@ -313,15 +233,8 @@ async def validate_address_geocoding_probe_async(
         geocode_distance_m=geocode_distance,
         reverse_distance_m=reverse_distance,
         address_match=_addresses_match(dto.best_address, geocode_candidate, reverse_candidate),
-        within_tolerance=bool(distance_values)
-        and min(distance_values) <= dto.distance_tolerance_m,
+        within_tolerance=bool(distance_values) and min(distance_values) <= dto.distance_tolerance_m,
     )
-
-
-async def _maybe_await(value: Any) -> Any:
-    if isawaitable(value):
-        return await value
-    return value
 
 
 def _coerce_probe(

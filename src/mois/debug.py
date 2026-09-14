@@ -5,11 +5,12 @@ from __future__ import annotations
 import re
 import traceback
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass, is_dataclass
+from dataclasses import asdict, dataclass, fields, is_dataclass, replace
 from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote, quote_plus, unquote
 
 from pydantic import BaseModel
 
@@ -116,3 +117,35 @@ def error_to_dict(exc: BaseException) -> dict[str, Any]:
     if isinstance(exc, MoisError):
         payload["result_code"] = exc.result_code
     return payload
+
+
+def redact_secret(obj: Any, secret: str) -> Any:
+    """검증된 모델 타입을 유지하면서 실제 키와 인코딩된 키를 제거합니다."""
+    if isinstance(obj, Enum):
+        return obj
+    if isinstance(obj, str):
+        variants = {secret, unquote(secret), quote(secret, safe=""), quote_plus(secret)}
+        for value in sorted(variants, key=len, reverse=True):
+            if value:
+                obj = obj.replace(value, "<REDACTED>")
+        return obj
+    if isinstance(obj, BaseModel):
+        return obj.model_copy(
+            update={name: redact_secret(value, secret) for name, value in obj.__dict__.items()}
+        )
+    if is_dataclass(obj) and not isinstance(obj, type):
+        return replace(
+            obj,
+            **{
+                item.name: redact_secret(getattr(obj, item.name), secret)
+                for item in fields(obj)
+                if item.init
+            },
+        )
+    if isinstance(obj, Mapping):
+        return {redact_secret(k, secret): redact_secret(v, secret) for k, v in obj.items()}
+    if isinstance(obj, tuple):
+        return tuple(redact_secret(value, secret) for value in obj)
+    if isinstance(obj, list):
+        return [redact_secret(value, secret) for value in obj]
+    return obj

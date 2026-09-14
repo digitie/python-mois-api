@@ -29,12 +29,12 @@ class FakeSession:
         self.response = response
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
-    def get(self, url: str, **kwargs: Any) -> FakeResponse:
+    async def get(self, url: str, **kwargs: Any) -> FakeResponse:
         self.calls.append((url, kwargs))
         return self.response
 
 
-def test_request_builds_condition_params_and_parses_json() -> None:
+async def test_request_builds_condition_params_and_parses_json() -> None:
     payload = {
         "response": {
             "header": {"resultCode": "00", "resultMsg": "NORMAL"},
@@ -50,7 +50,7 @@ def test_request_builds_condition_params_and_parses_json() -> None:
         FakeResponse(payload=payload, headers={"Content-Type": "application/json"})
     )
     client = MoisClient("KEY", session=session)
-    response = client.request(
+    response = await client.request(
         "hospitals",
         conditions={
             "DAT_UPDT_PNT": ("GTE", "20260301000000"),
@@ -87,23 +87,25 @@ def test_client_does_not_fallback_to_old_mois_service_key(
         MoisClient.from_env(session=FakeSession(FakeResponse()))
 
 
-def test_request_accepts_condition_objects_and_history_kind() -> None:
+async def test_request_accepts_condition_objects_and_history_kind() -> None:
     payload = {"response": {"header": {"resultCode": "00"}, "body": {"items": {"item": []}}}}
     session = FakeSession(
         FakeResponse(payload=payload, headers={"Content-Type": "application/json"})
     )
     client = MoisClient("KEY", session=session)
-    client.request(
-        "hospitals",
-        kind=OpenApiKind.HISTORY,
-        conditions=[Condition("BASE_DATE", ConditionOperator.EQ, "20260101")],
+    (
+        await client.request(
+            "hospitals",
+            kind=OpenApiKind.HISTORY,
+            conditions=[Condition("BASE_DATE", ConditionOperator.EQ, "20260101")],
+        )
     )
     url, kwargs = session.calls[0]
     assert url.endswith("/hospitals/history")
     assert kwargs["params"]["cond[BASE_DATE::EQ]"] == "20260101"
 
 
-def test_dynamic_getter_uses_slug_name() -> None:
+async def test_dynamic_getter_uses_slug_name() -> None:
     payload = {
         "response": {
             "header": {"resultCode": "00"},
@@ -114,10 +116,10 @@ def test_dynamic_getter_uses_slug_name() -> None:
         FakeResponse(payload=payload, headers={"Content-Type": "application/json"})
     )
     client = MoisClient("KEY", session=session)
-    assert client.get_hospitals() == [{"MNG_NO": "A1"}]
+    assert (await client.get_hospitals()) == [{"MNG_NO": "A1"}]
 
 
-def test_incremental_update_helper_uses_dat_updt_pnt_by_default() -> None:
+async def test_incremental_update_helper_uses_dat_updt_pnt_by_default() -> None:
     payload = {
         "response": {
             "header": {"resultCode": "00"},
@@ -128,12 +130,12 @@ def test_incremental_update_helper_uses_dat_updt_pnt_by_default() -> None:
         FakeResponse(payload=payload, headers={"Content-Type": "application/json"})
     )
     client = MoisClient("KEY", session=session)
-    assert client.get_updated("hospitals", datetime(2026, 3, 1, 1, 2, 3)) == []
+    assert (await client.get_updated("hospitals", datetime(2026, 3, 1, 1, 2, 3))) == []
     _, kwargs = session.calls[0]
     assert kwargs["params"]["cond[DAT_UPDT_PNT::GTE]"] == "20260301010203"
 
 
-def test_incremental_update_helper_can_use_source_modified_timestamp() -> None:
+async def test_incremental_update_helper_can_use_source_modified_timestamp() -> None:
     payload = {
         "response": {
             "header": {"resultCode": "00"},
@@ -144,12 +146,12 @@ def test_incremental_update_helper_can_use_source_modified_timestamp() -> None:
         FakeResponse(payload=payload, headers={"Content-Type": "application/json"})
     )
     client = MoisClient("KEY", session=session)
-    list(client.iter_updated("hospitals", "2026-03-01", source_modified=True))
+    [item async for item in client.iter_updated("hospitals", "2026-03-01", source_modified=True)]
     _, kwargs = session.calls[0]
     assert kwargs["params"]["cond[LAST_MDFCN_PNT::GTE]"] == "20260301000000"
 
 
-def test_dynamic_incremental_getter_uses_slug_name() -> None:
+async def test_dynamic_incremental_getter_uses_slug_name() -> None:
     payload = {
         "response": {
             "header": {"resultCode": "00"},
@@ -161,14 +163,14 @@ def test_dynamic_incremental_getter_uses_slug_name() -> None:
     )
     client = MoisClient("KEY", session=session)
 
-    assert client.get_updated_hospitals("20260505") == []
+    assert (await client.get_updated_hospitals("20260505")) == []
 
     url, kwargs = session.calls[0]
     assert url.endswith("/hospitals/info")
     assert kwargs["params"]["cond[DAT_UPDT_PNT::GTE]"] == "20260505000000"
 
 
-def test_dynamic_incremental_iterator_can_use_source_modified_timestamp() -> None:
+async def test_dynamic_incremental_iterator_can_use_source_modified_timestamp() -> None:
     payload = {
         "response": {
             "header": {"resultCode": "00"},
@@ -180,14 +182,16 @@ def test_dynamic_incremental_iterator_can_use_source_modified_timestamp() -> Non
     )
     client = MoisClient("KEY", session=session)
 
-    assert list(client.iter_updated_hospitals("20260505010203", source_modified=True)) == []
+    assert [
+        item async for item in client.iter_updated_hospitals("20260505010203", source_modified=True)
+    ] == []
 
     url, kwargs = session.calls[0]
     assert url.endswith("/hospitals/info")
     assert kwargs["params"]["cond[LAST_MDFCN_PNT::GTE]"] == "20260505010203"
 
 
-def test_dynamic_incremental_helpers_exist_for_every_incremental_endpoint() -> None:
+async def test_dynamic_incremental_helpers_exist_for_every_incremental_endpoint() -> None:
     payload = {
         "response": {
             "header": {"resultCode": "00"},
@@ -197,12 +201,12 @@ def test_dynamic_incremental_helpers_exist_for_every_incremental_endpoint() -> N
     session = FakeSession(
         FakeResponse(payload=payload, headers={"Content-Type": "application/json"})
     )
-    client = MoisClient("KEY", session=session, base_url="http://example.test")
+    client = MoisClient("KEY", session=session, base_url="http://example.test", max_rps=100000)
     endpoints = list_incremental_openapi_endpoints()
 
     for endpoint in endpoints:
         method = getattr(client, endpoint.get_method)
-        assert method("2026-05-05", max_pages=1) == []
+        assert (await method("2026-05-05", max_pages=1)) == []
 
         url, kwargs = session.calls[-1]
         assert url == f"http://example.test/{endpoint.service_slug}/info"
@@ -212,7 +216,7 @@ def test_dynamic_incremental_helpers_exist_for_every_incremental_endpoint() -> N
     assert len(session.calls) == len(endpoints)
 
 
-def test_history_at_helper_builds_base_date_and_org_code_conditions() -> None:
+async def test_history_at_helper_builds_base_date_and_org_code_conditions() -> None:
     payload = {
         "response": {
             "header": {"resultCode": "00"},
@@ -223,14 +227,14 @@ def test_history_at_helper_builds_base_date_and_org_code_conditions() -> None:
         FakeResponse(payload=payload, headers={"Content-Type": "application/json"})
     )
     client = MoisClient("KEY", session=session)
-    assert client.get_history_at("hospitals", date(2026, 1, 1), org_code="3000000") == []
+    assert (await client.get_history_at("hospitals", date(2026, 1, 1), org_code="3000000")) == []
     url, kwargs = session.calls[0]
     assert url.endswith("/hospitals/history")
     assert kwargs["params"]["cond[BASE_DATE::EQ]"] == "20260101"
     assert kwargs["params"]["cond[OPN_ATMY_GRP_CD::EQ]"] == "3000000"
 
 
-def test_xml_response_parsing() -> None:
+async def test_xml_response_parsing() -> None:
     xml = """<?xml version="1.0" encoding="UTF-8"?>
 <response>
   <header><resultCode>00</resultCode><resultMsg>NORMAL</resultMsg></header>
@@ -241,12 +245,12 @@ def test_xml_response_parsing() -> None:
 </response>"""
     session = FakeSession(FakeResponse(text=xml, headers={"Content-Type": "application/xml"}))
     client = MoisClient("KEY", session=session)
-    response = client.request("hospitals")
+    response = await client.request("hospitals")
     assert response.items == ({"MNG_NO": "A1", "BPLC_NM": "병원"},)
     assert response.total_count == 1
 
 
-def test_result_codes_are_mapped_to_exceptions() -> None:
+async def test_result_codes_are_mapped_to_exceptions() -> None:
     payload = {
         "response": {
             "header": {"resultCode": "30", "resultMsg": "SERVICE KEY IS NOT REGISTERED"},
@@ -258,12 +262,16 @@ def test_result_codes_are_mapped_to_exceptions() -> None:
     )
     client = MoisClient("KEY", session=session)
     with pytest.raises(MoisAuthError):
-        client.request("hospitals")
+        (await client.request("hospitals"))
 
 
-def test_invalid_request_parameters_fail_before_network() -> None:
+async def test_invalid_request_parameters_fail_before_network() -> None:
     client = MoisClient("KEY", session=FakeSession(FakeResponse()))
     with pytest.raises(ValueError, match="num_of_rows"):
-        client.request("hospitals", num_of_rows=101)
+        (await client.request("hospitals", num_of_rows=101))
     with pytest.raises(MoisRequestError):
-        MoisClient("KEY", session=FakeSession(FakeResponse(status_code=404))).request("hospitals")
+        (
+            await MoisClient("KEY", session=FakeSession(FakeResponse(status_code=404))).request(
+                "hospitals"
+            )
+        )

@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import asyncio
 import os
-from collections.abc import Mapping
-from typing import Any
 
 import pytest
 
@@ -11,22 +8,15 @@ from mois import MoisClient
 
 
 @pytest.mark.live
-def test_live_hospitals_first_page_sync_and_async() -> None:
+async def test_live_hospitals_first_page_and_debug() -> None:
+    if os.getenv("MOIS_RUN_LIVE") != "1":
+        pytest.skip("MOIS_RUN_LIVE=1일 때만 실제 API를 호출합니다")
     key = os.getenv("DATA_GO_KR_SERVICE_KEY")
     if not key:
         pytest.skip("DATA_GO_KR_SERVICE_KEY가 없습니다")
-
-    with MoisClient(key, timeout=30.0, max_rps=2.0) as client:
-        sync_rows = client.get_hospitals(num_of_rows=1)
-    assert isinstance(sync_rows, list)
-    if sync_rows:
-        assert isinstance(sync_rows[0], Mapping)
-
-    async def run() -> list[Mapping[str, Any]]:
-        async with MoisClient.aio(key, timeout=30.0, max_rps=2.0) as client:
-            return await client.get_hospitals(num_of_rows=1)
-
-    async_rows = asyncio.run(run())
-    assert isinstance(async_rows, list)
-    if async_rows:
-        assert isinstance(async_rows[0], Mapping)
+    async with MoisClient(key, timeout=30.0, max_rps=2.0) as client:
+        rows = await client.get_hospitals(num_of_rows=1)
+        assert rows
+        run = await client.debug_request("hospitals", num_of_rows=1)
+        assert run.error is None, run.error
+        assert run.processed
